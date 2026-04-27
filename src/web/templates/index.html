@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RWKV 超级并发多智能体小说共创框架</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Microsoft YaHei', sans-serif; background: #0a0a1a; color: #e0e0e0; }
+        .nav { display: flex; background: #1a1a2e; padding: 12px 24px; gap: 24px; border-bottom: 1px solid #333; }
+        .nav a { color: #7b8cff; text-decoration: none; font-size: 15px; padding: 6px 12px; border-radius: 6px; transition: all .2s; }
+        .nav a:hover, .nav a.active { background: #2a2a4e; color: #a0a8ff; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
+        h1 { font-size: 28px; color: #7b8cff; margin-bottom: 16px; }
+        h2 { font-size: 20px; color: #a0a8ff; margin: 16px 0 8px; }
+        .card { background: #1a1a2e; border: 1px solid #333; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+        .stat { text-align: center; }
+        .stat .num { font-size: 36px; color: #7b8cff; font-weight: bold; }
+        .stat .label { font-size: 13px; color: #888; }
+        .btn { background: #7b8cff; color: #fff; border: none; padding: 8px 20px; border-radius: 6px; cursor: pointer; font-size: 14px; }
+        .btn:hover { background: #5a6cff; }
+        .btn.danger { background: #ff4757; }
+        .btn.success { background: #2ed573; }
+        #status-bar { background: #16213e; padding: 8px 16px; border-radius: 6px; margin-bottom: 16px; font-size: 13px; }
+    </style>
+</head>
+<body>
+    <nav class="nav">
+        <a href="/" class="active">首页</a>
+        <a href="/create">小说创作</a>
+        <a href="/pipeline">管线控制</a>
+        <a href="/world">世界状态</a>
+        <a href="/roleplay">角色扮演</a>
+        <a href="/review">审核裁决</a>
+    </nav>
+    <div class="container">
+        <h1>RWKV 超级并发多智能体小说共创框架</h1>
+        <div id="status-bar">加载中...</div>
+        <div class="grid">
+            <div class="card stat">
+                <div class="num" id="stat-chars">-</div>
+                <div class="label">角色数量</div>
+            </div>
+            <div class="card stat">
+                <div class="num" id="stat-factions">-</div>
+                <div class="label">势力数量</div>
+            </div>
+            <div class="card stat">
+                <div class="num" id="stat-foreshadow">-</div>
+                <div class="label">待回收伏笔</div>
+            </div>
+            <div class="card stat">
+                <div class="num" id="stat-timeline">-</div>
+                <div class="label">时间线事件</div>
+            </div>
+        </div>
+        <div class="card">
+            <h2>快速操作</h2>
+            <p style="margin:8px 0"><a href="/pipeline" class="btn">启动管线</a></p>
+            <p style="margin:8px 0"><a href="/roleplay" class="btn">角色扮演对话</a></p>
+            <p style="margin:8px 0"><a href="/world" class="btn">查看世界状态</a></p>
+        </div>
+    </div>
+    <script>
+        async function loadStatus() {
+            try {
+                const r = await fetch('/api/status');
+                const d = await r.json();
+                document.getElementById('status-bar').textContent = '管线状态: ' + d.state;
+                const ws = d.world_status || {};
+                document.getElementById('stat-chars').textContent = ws.characters || 0;
+                document.getElementById('stat-factions').textContent = ws.factions || 0;
+                document.getElementById('stat-foreshadow').textContent = (ws.foreshadowings && ws.foreshadowings.planted) || 0;
+                document.getElementById('stat-timeline').textContent = ws.timeline_events || 0;
+            } catch(e) {
+                document.getElementById('status-bar').textContent = '无法连接服务器';
+            }
+        }
+        loadStatus();
+        setInterval(loadStatus, 5000);
+    </script>
+</body>
+</html>

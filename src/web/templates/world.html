@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>世界状态 - RWKV 小说共创</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Microsoft YaHei', sans-serif; background: #0a0a1a; color: #e0e0e0; }
+        .nav { display: flex; background: #1a1a2e; padding: 12px 24px; gap: 24px; border-bottom: 1px solid #333; }
+        .nav a { color: #7b8cff; text-decoration: none; font-size: 15px; padding: 6px 12px; border-radius: 6px; }
+        .nav a:hover { background: #2a2a4e; }
+        .container { max-width: 1100px; margin: 0 auto; padding: 24px; }
+        h1 { font-size: 24px; color: #7b8cff; margin-bottom: 16px; }
+        h2 { font-size: 18px; color: #a0a8ff; margin: 16px 0 8px; }
+        .card { background: #1a1a2e; border: 1px solid #333; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 8px 12px; text-align: left; border-bottom: 1px solid #333; font-size: 13px; }
+        th { color: #7b8cff; background: #16213e; }
+        tr:hover { background: #1e1e3a; }
+        .tag { display: inline-block; background: #2a2a4e; color: #7b8cff; padding: 2px 8px; border-radius: 4px; font-size: 12px; margin: 2px; }
+        .tag.planted { background: #2a4a2e; color: #2ed573; }
+        .tag.resolved { background: #4a4a2e; color: #ffa502; }
+        .tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+        .tab { padding: 8px 16px; background: #1a1a2e; border: 1px solid #333; border-radius: 6px; cursor: pointer; color: #888; }
+        .tab.active { background: #2a2a4e; color: #7b8cff; border-color: #7b8cff; }
+    </style>
+</head>
+<body>
+    <nav class="nav">
+        <a href="/">首页</a>
+        <a href="/pipeline">管线控制</a>
+        <a href="/world" style="background:#2a2a4e">世界状态</a>
+        <a href="/roleplay">角色扮演</a>
+        <a href="/review">审核裁决</a>
+    </nav>
+    <div class="container">
+        <h1>世界状态</h1>
+        <div class="tabs">
+            <div class="tab active" onclick="switchTab('characters')">角色</div>
+            <div class="tab" onclick="switchTab('factions')">势力</div>
+            <div class="tab" onclick="switchTab('economy')">经济</div>
+            <div class="tab" onclick="switchTab('foreshadowings')">伏笔</div>
+            <div class="tab" onclick="switchTab('timeline')">时间线</div>
+        </div>
+        <div id="content" class="card">加载中...</div>
+    </div>
+    <script>
+        let currentTab = 'characters';
+        function switchTab(tab) {
+            currentTab = tab;
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+            loadTab();
+        }
+        async function loadTab() {
+            const el = document.getElementById('content');
+            try {
+                if (currentTab === 'characters') {
+                    const r = await fetch('/api/world/characters');
+                    const data = await r.json();
+                    let html = '<table><tr><th>ID</th><th>名称</th><th>位置</th><th>状态</th><th>属性</th></tr>';
+                    data.forEach(c => {
+                        const attrs = Object.entries(c.attributes || {}).map(([k,v]) => `${k}=${v}`).join(', ');
+                        html += `<tr><td>${c.character_id}</td><td>${c.name}</td><td>${c.location}</td><td><span class="tag">${c.status}</span></td><td>${attrs}</td></tr>`;
+                    });
+                    html += '</table>';
+                    el.innerHTML = html;
+                } else if (currentTab === 'factions') {
+                    const r = await fetch('/api/world/factions');
+                    const data = await r.json();
+                    let html = '<table><tr><th>ID</th><th>名称</th><th>成员</th><th>领地</th></tr>';
+                    data.forEach(f => {
+                        html += `<tr><td>${f.faction_id}</td><td>${f.name}</td><td>${(f.members||[]).join(', ')}</td><td>${f.territory}</td></tr>`;
+                    });
+                    html += '</table>';
+                    el.innerHTML = html;
+                } else if (currentTab === 'economy') {
+                    const r = await fetch('/api/world/economy');
+                    const data = await r.json();
+                    el.innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+                } else if (currentTab === 'foreshadowings') {
+                    const r = await fetch('/api/world/foreshadowings');
+                    const data = await r.json();
+                    let html = '<table><tr><th>ID</th><th>描述</th><th>状态</th><th>埋设章节</th><th>预计回收</th></tr>';
+                    data.forEach(f => {
+                        html += `<tr><td>${f.id}</td><td>${f.description}</td><td><span class="tag ${f.status}">${f.status}</span></td><td>${f.planted_at}</td><td>${f.expected_resolve}</td></tr>`;
+                    });
+                    html += '</table>';
+                    el.innerHTML = html;
+                } else if (currentTab === 'timeline') {
+                    const r = await fetch('/api/world/timeline');
+                    const data = await r.json();
+                    let html = '<table><tr><th>章节</th><th>事件</th><th>时间</th></tr>';
+                    data.forEach(e => {
+                        html += `<tr><td>${e.chapter_id}</td><td>${e.event}</td><td>${e.timestamp || ''}</td></tr>`;
+                    });
+                    html += '</table>';
+                    el.innerHTML = html;
+                }
+            } catch(e) { el.innerHTML = '加载失败: ' + e; }
+        }
+        loadTab();
+        setInterval(loadTab, 10000);
+    </script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+{
+  "state": "paused",
+  "stage": "error",
+  "timestamp": 1777074180.3311129,
+  "data": {
+    "error": "'str' object has no attribute 'get'",
+    "state": "paused"
+  }
+}

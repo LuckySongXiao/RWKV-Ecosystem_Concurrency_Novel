@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>管线控制 - RWKV 小说共创</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Microsoft YaHei', sans-serif; background: #0a0a1a; color: #e0e0e0; }
+        .nav { display: flex; background: #1a1a2e; padding: 12px 24px; gap: 24px; border-bottom: 1px solid #333; }
+        .nav a { color: #7b8cff; text-decoration: none; font-size: 15px; padding: 6px 12px; border-radius: 6px; }
+        .nav a:hover { background: #2a2a4e; }
+        .container { max-width: 900px; margin: 0 auto; padding: 24px; }
+        h1 { font-size: 24px; color: #7b8cff; margin-bottom: 16px; }
+        .card { background: #1a1a2e; border: 1px solid #333; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+        .btn { background: #7b8cff; color: #fff; border: none; padding: 10px 24px; border-radius: 6px; cursor: pointer; font-size: 14px; margin: 4px; }
+        .btn:hover { background: #5a6cff; }
+        .btn.danger { background: #ff4757; }
+        .btn.success { background: #2ed573; }
+        #log { background: #0d0d1a; border: 1px solid #333; border-radius: 6px; padding: 12px; font-family: monospace; font-size: 13px; height: 400px; overflow-y: auto; white-space: pre-wrap; }
+        .status { font-size: 18px; margin: 12px 0; }
+        .status.running { color: #2ed573; }
+        .status.paused { color: #ffa502; }
+        .status.completed { color: #7b8cff; }
+    </style>
+</head>
+<body>
+    <nav class="nav">
+        <a href="/">首页</a>
+        <a href="/pipeline" style="background:#2a2a4e">管线控制</a>
+        <a href="/world">世界状态</a>
+        <a href="/roleplay">角色扮演</a>
+        <a href="/review">审核裁决</a>
+    </nav>
+    <div class="container">
+        <h1>管线控制</h1>
+        <div class="card">
+            <div class="status" id="pipeline-status">状态: 未知</div>
+            <button class="btn success" onclick="startPipeline()">启动管线</button>
+            <button class="btn" onclick="resumePipeline()">断点恢复</button>
+        </div>
+        <div class="card">
+            <h2 style="color:#a0a8ff;margin-bottom:8px">管线日志</h2>
+            <div id="log">等待管线启动...</div>
+        </div>
+    </div>
+    <script>
+        function addLog(msg) {
+            const el = document.getElementById('log');
+            el.textContent += new Date().toLocaleTimeString() + ' ' + msg + '\n';
+            el.scrollTop = el.scrollHeight;
+        }
+        async function startPipeline() {
+            addLog('[启动] 正在启动管线...');
+            const r = await fetch('/api/pipeline/start', {method:'POST'});
+            const d = await r.json();
+            addLog('[启动] ' + d.status);
+        }
+        async function resumePipeline() {
+            addLog('[恢复] 正在从断点恢复...');
+            const r = await fetch('/api/pipeline/resume', {method:'POST'});
+            const d = await r.json();
+            addLog('[恢复] ' + d.status);
+        }
+        async function pollStatus() {
+            try {
+                const r = await fetch('/api/status');
+                const d = await r.json();
+                const el = document.getElementById('pipeline-status');
+                el.textContent = '状态: ' + d.state;
+                el.className = 'status ' + d.state;
+            } catch(e) {}
+        }
+        setInterval(pollStatus, 2000);
+        pollStatus();
+    </script>
+</body>
+</html>

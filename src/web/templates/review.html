@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>审核裁决 - RWKV 小说共创</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Microsoft YaHei', sans-serif; background: #0a0a1a; color: #e0e0e0; }
+        .nav { display: flex; background: #1a1a2e; padding: 12px 24px; gap: 24px; border-bottom: 1px solid #333; }
+        .nav a { color: #7b8cff; text-decoration: none; font-size: 15px; padding: 6px 12px; border-radius: 6px; }
+        .nav a:hover { background: #2a2a4e; }
+        .container { max-width: 900px; margin: 0 auto; padding: 24px; }
+        h1 { font-size: 24px; color: #7b8cff; margin-bottom: 16px; }
+        h2 { font-size: 18px; color: #a0a8ff; margin: 16px 0 8px; }
+        .card { background: #1a1a2e; border: 1px solid #333; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+        .btn { background: #7b8cff; color: #fff; border: none; padding: 8px 20px; border-radius: 6px; cursor: pointer; font-size: 14px; margin: 4px; }
+        .btn:hover { background: #5a6cff; }
+        .btn.approve { background: #2ed573; }
+        .btn.reject { background: #ff4757; }
+        .btn.revoke { background: #ffa502; color: #000; }
+        .item { background: #16213e; border: 1px solid #333; border-radius: 6px; padding: 12px; margin: 8px 0; }
+        .item .title { color: #ffa502; font-weight: bold; margin-bottom: 4px; }
+        .item .desc { color: #ccc; font-size: 13px; }
+        .empty { color: #666; text-align: center; padding: 24px; }
+    </style>
+</head>
+<body>
+    <nav class="nav">
+        <a href="/">首页</a>
+        <a href="/pipeline">管线控制</a>
+        <a href="/world">世界状态</a>
+        <a href="/roleplay">角色扮演</a>
+        <a href="/review" style="background:#2a2a4e">审核裁决</a>
+    </nav>
+    <div class="container">
+        <h1>审核裁决</h1>
+        <div class="card">
+            <h2>待审批操作 (必确认级)</h2>
+            <div id="pending-list"><div class="empty">加载中...</div></div>
+        </div>
+        <div class="card">
+            <h2>可撤回操作 (建议执行级)</h2>
+            <div id="reviewable-list"><div class="empty">加载中...</div></div>
+        </div>
+    </div>
+    <script>
+        async function loadPending() {
+            const el = document.getElementById('pending-list');
+            try {
+                const r = await fetch('/api/review/pending');
+                const data = await r.json();
+                if (!data.length) { el.innerHTML = '<div class="empty">无待审批操作</div>'; return; }
+                el.innerHTML = '';
+                data.forEach((item, i) => {
+                    el.innerHTML += `<div class="item">
+                        <div class="title">工具: ${item.tool} | 时间: ${item.timestamp}</div>
+                        <div class="desc">参数: ${JSON.stringify(item.params)}</div>
+                        <button class="btn approve" onclick="approve(${i}, true)">通过</button>
+                        <button class="btn reject" onclick="approve(${i}, false)">驳回</button>
+                    </div>`;
+                });
+            } catch(e) { el.innerHTML = '<div class="empty">加载失败</div>'; }
+        }
+        async function loadReviewable() {
+            const el = document.getElementById('reviewable-list');
+            try {
+                const r = await fetch('/api/review/reviewable');
+                const data = await r.json();
+                if (!data.length) { el.innerHTML = '<div class="empty">无可撤回操作</div>'; return; }
+                el.innerHTML = '';
+                data.forEach((item, i) => {
+                    const revoked = item.revoked ? ' (已撤回)' : '';
+                    el.innerHTML += `<div class="item">
+                        <div class="title">工具: ${item.tool} | 时间: ${item.timestamp}${revoked}</div>
+                        <div class="desc">结果: ${JSON.stringify(item.result).substring(0, 200)}</div>
+                        ${!item.revoked ? `<button class="btn revoke" onclick="revoke(${i})">撤回</button>` : ''}
+                    </div>`;
+                });
+            } catch(e) { el.innerHTML = '<div class="empty">加载失败</div>'; }
+        }
+        async function approve(id, approved) {
+            await fetch('/api/review/approve/' + id, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({approved: approved})
+            });
+            loadPending();
+        }
+        async function revoke(id) {
+            await fetch('/api/review/revoke/' + id, {method: 'POST'});
+            loadReviewable();
+        }
+        loadPending();
+        loadReviewable();
+        setInterval(() => { loadPending(); loadReviewable(); }, 5000);
+    </script>
+</body>
+</html>

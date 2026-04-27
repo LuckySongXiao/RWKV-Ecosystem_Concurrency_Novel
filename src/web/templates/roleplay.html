@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>角色扮演 - RWKV 小说共创</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Microsoft YaHei', sans-serif; background: #0a0a1a; color: #e0e0e0; }
+        .nav { display: flex; background: #1a1a2e; padding: 12px 24px; gap: 24px; border-bottom: 1px solid #333; }
+        .nav a { color: #7b8cff; text-decoration: none; font-size: 15px; padding: 6px 12px; border-radius: 6px; }
+        .nav a:hover { background: #2a2a4e; }
+        .container { max-width: 900px; margin: 0 auto; padding: 24px; }
+        h1 { font-size: 24px; color: #7b8cff; margin-bottom: 16px; }
+        .card { background: #1a1a2e; border: 1px solid #333; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+        label { display: block; color: #a0a8ff; margin: 8px 0 4px; font-size: 13px; }
+        input, textarea, select { width: 100%; background: #0d0d1a; border: 1px solid #333; color: #e0e0e0; padding: 8px; border-radius: 6px; font-size: 14px; }
+        textarea { height: 80px; resize: vertical; }
+        .btn { background: #7b8cff; color: #fff; border: none; padding: 10px 24px; border-radius: 6px; cursor: pointer; font-size: 14px; margin: 8px 4px 0 0; }
+        .btn:hover { background: #5a6cff; }
+        .btn.danger { background: #ff4757; }
+        #chat-area { background: #0d0d1a; border: 1px solid #333; border-radius: 6px; padding: 12px; height: 400px; overflow-y: auto; }
+        .msg { margin: 8px 0; padding: 8px 12px; border-radius: 6px; font-size: 14px; }
+        .msg.user { background: #1e3a5f; text-align: right; }
+        .msg.character { background: #1a2e1a; }
+        .msg .name { font-size: 12px; color: #888; margin-bottom: 4px; }
+    </style>
+</head>
+<body>
+    <nav class="nav">
+        <a href="/">首页</a>
+        <a href="/pipeline">管线控制</a>
+        <a href="/world">世界状态</a>
+        <a href="/roleplay" style="background:#2a2a4e">角色扮演</a>
+        <a href="/review">审核裁决</a>
+    </nav>
+    <div class="container">
+        <h1>角色扮演</h1>
+        <div class="card">
+            <label>角色ID</label>
+            <input type="text" id="char-id" placeholder="输入角色ID，如 protagonist">
+            <label>场景上下文</label>
+            <textarea id="scene-context" placeholder="描述当前场景..."></textarea>
+            <label>用户输入</label>
+            <textarea id="user-input" placeholder="对角色说话或描述情境..."></textarea>
+            <button class="btn" onclick="sendDialogue()">发送对话</button>
+            <button class="btn" onclick="sendMonologue()">内心独白</button>
+            <button class="btn danger" onclick="resetSession()">重置会话</button>
+        </div>
+        <div class="card">
+            <h2 style="color:#a0a8ff;margin-bottom:8px">对话记录</h2>
+            <div id="chat-area"></div>
+        </div>
+    </div>
+    <script>
+        let history = '';
+        function addMessage(name, text, cls) {
+            const el = document.getElementById('chat-area');
+            el.innerHTML += `<div class="msg ${cls}"><div class="name">${name}</div>${text}</div>`;
+            el.scrollTop = el.scrollHeight;
+        }
+        async function sendDialogue() {
+            const charId = document.getElementById('char-id').value;
+            const scene = document.getElementById('scene-context').value;
+            const input = document.getElementById('user-input').value;
+            if (!charId || !input) return;
+            addMessage('你', input, 'user');
+            try {
+                const r = await fetch('/api/roleplay/dialogue', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({character_id: charId, scene_context: scene, user_input: input, dialogue_history: history})
+                });
+                const d = await r.json();
+                addMessage(charId, d.response, 'character');
+                history += '\n你: ' + input + '\n' + charId + ': ' + d.response;
+            } catch(e) { addMessage('系统', '错误: ' + e, 'user'); }
+            document.getElementById('user-input').value = '';
+        }
+        async function sendMonologue() {
+            const charId = document.getElementById('char-id').value;
+            const scene = document.getElementById('scene-context').value;
+            if (!charId) return;
+            try {
+                const r = await fetch('/api/roleplay/monologue', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({character_id: charId, situation: scene || '当前情境'})
+                });
+                const d = await r.json();
+                addMessage(charId + ' (内心)', d.monologue, 'character');
+            } catch(e) { addMessage('系统', '错误: ' + e, 'user'); }
+        }
+        async function resetSession() {
+            const charId = document.getElementById('char-id').value;
+            if (!charId) return;
+            await fetch('/api/roleplay/reset/' + charId, {method: 'POST'});
+            document.getElementById('chat-area').innerHTML = '';
+            history = '';
+            addMessage('系统', '会话已重置', 'user');
+        }
+    </script>
+</body>
+</html>
