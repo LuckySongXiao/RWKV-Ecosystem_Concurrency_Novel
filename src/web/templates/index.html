@@ -4,25 +4,59 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RWKV 超级并发多智能体小说共创框架</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+    <script src="/static/js/global-state.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Microsoft YaHei', sans-serif; background: #0a0a1a; color: #e0e0e0; }
-        .nav { display: flex; background: #1a1a2e; padding: 12px 24px; gap: 24px; border-bottom: 1px solid #333; }
-        .nav a { color: #7b8cff; text-decoration: none; font-size: 15px; padding: 6px 12px; border-radius: 6px; transition: all .2s; }
+        body { font-family: 'Microsoft YaHei', sans-serif; background: #0a0a1a; color: #e0e0e0; min-height: 100vh; }
+        .nav { display: flex; background: #1a1a2e; padding: 12px 24px; gap: 8px; border-bottom: 1px solid #333; flex-wrap: wrap; }
+        .nav a { color: #7b8cff; text-decoration: none; font-size: 14px; padding: 8px 16px; border-radius: 6px; transition: all .2s; }
         .nav a:hover, .nav a.active { background: #2a2a4e; color: #a0a8ff; }
-        .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
-        h1 { font-size: 28px; color: #7b8cff; margin-bottom: 16px; }
-        h2 { font-size: 20px; color: #a0a8ff; margin: 16px 0 8px; }
-        .card { background: #1a1a2e; border: 1px solid #333; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
-        .stat { text-align: center; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 24px; }
+        h1 { font-size: 28px; color: #7b8cff; margin-bottom: 20px; }
+        h2 { font-size: 18px; color: #a0a8ff; margin: 16px 0 12px; }
+        .card { background: #1a1a2e; border: 1px solid #333; border-radius: 8px; padding: 20px; margin-bottom: 16px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
+        .stat { text-align: center; padding: 16px; }
         .stat .num { font-size: 36px; color: #7b8cff; font-weight: bold; }
-        .stat .label { font-size: 13px; color: #888; }
-        .btn { background: #7b8cff; color: #fff; border: none; padding: 8px 20px; border-radius: 6px; cursor: pointer; font-size: 14px; }
+        .stat .label { font-size: 13px; color: #888; margin-top: 4px; }
+        .btn { background: #7b8cff; color: #fff; border: none; padding: 10px 24px; border-radius: 6px; cursor: pointer; font-size: 14px; transition: all .2s; }
         .btn:hover { background: #5a6cff; }
         .btn.danger { background: #ff4757; }
         .btn.success { background: #2ed573; }
-        #status-bar { background: #16213e; padding: 8px 16px; border-radius: 6px; margin-bottom: 16px; font-size: 13px; }
+        .btn.warn { background: #ffa502; color: #1a1a2e; }
+        #status-bar { background: #16213e; padding: 12px 16px; border-radius: 6px; margin-bottom: 20px; font-size: 14px; display: flex; justify-content: space-between; align-items: center; }
+        .spec-overview { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; margin-top: 16px; }
+        .spec-card { background: #16213e; border: 1px solid #333; border-radius: 8px; padding: 16px; }
+        .spec-card h3 { color: #7b8cff; font-size: 15px; margin-bottom: 8px; }
+        .spec-card p { color: #aaa; font-size: 13px; line-height: 1.6; }
+        .quick-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-top: 16px; }
+        .quick-action { background: #16213e; border: 1px solid #333; border-radius: 8px; padding: 20px; text-align: center; cursor: pointer; transition: all .2s; text-decoration: none; color: #e0e0e0; }
+        .quick-action:hover { background: #2a2a4e; border-color: #7b8cff; }
+        .quick-action .icon { font-size: 32px; margin-bottom: 8px; }
+        .quick-action .text { font-size: 14px; }
+        .model-modal-overlay { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:1000; justify-content:center; align-items:center; }
+        .model-modal-overlay.active { display:flex; }
+        .model-modal { background:#1a1a2e; border:1px solid #7b8cff; border-radius:12px; padding:28px; max-width:700px; width:90%; max-height:80vh; overflow-y:auto; }
+        .model-modal h2 { color:#7b8cff; font-size:20px; margin:0 0 20px 0; }
+        .model-item { background:#16213e; border:1px solid #333; border-radius:8px; padding:16px; margin-bottom:12px; cursor:pointer; transition:all .2s; display:grid; grid-template-columns:1fr auto; gap:12px; align-items:center; }
+        .model-item:hover { border-color:#7b8cff; background:#1e2a4e; }
+        .model-item.selected { border-color:#2ed573; background:#1a2a1a; }
+        .model-item .model-name { color:#e0e0e0; font-size:14px; font-weight:bold; word-break:break-all; }
+        .model-item .model-info { color:#888; font-size:12px; margin-top:4px; display:flex; gap:12px; flex-wrap:wrap; }
+        .model-item .model-info span { background:#0d0d1a; padding:2px 8px; border-radius:4px; }
+        .model-item .model-badge { padding:4px 12px; border-radius:12px; font-size:12px; font-weight:bold; }
+        .model-badge.recommended { background:#1a3a2a; color:#2ed573; }
+        .model-badge.st { background:#2a2a4e; color:#7b8cff; }
+        .model-badge.pth { background:#3a2a1a; color:#ffa502; }
+        .model-item .model-size { color:#a0a8ff; font-size:13px; white-space:nowrap; }
+        .model-service-status { display:flex; align-items:center; gap:8px; margin-bottom:16px; padding:12px; background:#0d0d1a; border-radius:8px; }
+        .model-service-status .dot { width:10px; height:10px; border-radius:50%; }
+        .model-service-status .dot.running { background:#2ed573; box-shadow:0 0 8px #2ed573; }
+        .model-service-status .dot.stopped { background:#ff4757; }
+        .model-service-status .dot.starting { background:#ffa502; animation:pulse 1s infinite; }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+        .model-modal-actions { display:flex; gap:8px; margin-top:20px; justify-content:flex-end; }
     </style>
 </head>
 <body>
@@ -30,13 +64,23 @@
         <a href="/" class="active">首页</a>
         <a href="/create">小说创作</a>
         <a href="/pipeline">管线控制</a>
+        <a href="/matrix">章节并发矩阵</a>
         <a href="/world">世界状态</a>
         <a href="/roleplay">角色扮演</a>
         <a href="/review">审核裁决</a>
     </nav>
     <div class="container">
         <h1>RWKV 超级并发多智能体小说共创框架</h1>
-        <div id="status-bar">加载中...</div>
+        <div id="status-bar">
+            <span>加载中...</span>
+            <div style="display:flex; align-items:center; gap:12px;">
+                <span id="model-status-btn" style="cursor:pointer; padding:4px 12px; border-radius:6px; background:#2a2a4e; font-size:13px; display:flex; align-items:center; gap:6px;" onclick="openModelModal()">
+                    <span id="model-dot" style="width:8px;height:8px;border-radius:50%;background:#ff4757;"></span>
+                    <span id="model-status-text">未选择模型</span>
+                </span>
+                <span id="pipeline-state-text">-</span>
+            </div>
+        </div>
         <div class="grid">
             <div class="card stat">
                 <div class="num" id="stat-chars">-</div>
@@ -51,34 +95,450 @@
                 <div class="label">待回收伏笔</div>
             </div>
             <div class="card stat">
-                <div class="num" id="stat-timeline">-</div>
-                <div class="label">时间线事件</div>
+                <div class="num" id="stat-chapters">-</div>
+                <div class="label">已生成章节</div>
+            </div>
+        </div>
+        <div class="card">
+            <h2>设定概览</h2>
+            <div class="spec-overview" id="spec-overview">
+                <div class="spec-card">
+                    <h3>题材</h3>
+                    <p id="spec-genre">-</p>
+                </div>
+                <div class="spec-card">
+                    <h3>世界观</h3>
+                    <p id="spec-world">-</p>
+                </div>
+                <div class="spec-card">
+                    <h3>核心冲突</h3>
+                    <p id="spec-conflict">-</p>
+                </div>
+                <div class="spec-card">
+                    <h3>故事主线</h3>
+                    <p id="spec-storyline">-</p>
+                </div>
             </div>
         </div>
         <div class="card">
             <h2>快速操作</h2>
-            <p style="margin:8px 0"><a href="/pipeline" class="btn">启动管线</a></p>
-            <p style="margin:8px 0"><a href="/roleplay" class="btn">角色扮演对话</a></p>
-            <p style="margin:8px 0"><a href="/world" class="btn">查看世界状态</a></p>
+            <div class="quick-actions">
+                <a href="/create" class="quick-action">
+                    <div class="icon">📝</div>
+                    <div class="text">编辑设定</div>
+                </a>
+                <a href="/pipeline" class="quick-action">
+                    <div class="icon">🚀</div>
+                    <div class="text">管线控制</div>
+                </a>
+                <a href="/matrix" class="quick-action">
+                    <div class="icon">📊</div>
+                    <div class="text">章节并发矩阵</div>
+                </a>
+                <a href="/world" class="quick-action">
+                    <div class="icon">🌍</div>
+                    <div class="text">世界状态</div>
+                </a>
+                <a href="/roleplay" class="quick-action">
+                    <div class="icon">🎭</div>
+                    <div class="text">角色扮演</div>
+                </a>
+                <a href="/review" class="quick-action">
+                    <div class="icon">⚖️</div>
+                    <div class="text">审核裁决</div>
+                </a>
+            </div>
+        </div>
+        <div class="card">
+            <h2>一键启动优化管线</h2>
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:12px; margin-bottom:16px;">
+                <div>
+                    <label style="color:#a0a8ff; font-size:13px; display:block; margin-bottom:6px;">主题</label>
+                    <input type="text" id="home-theme" value="仙侠" style="width:100%; background:#0d0d1a; border:1px solid #333; color:#e0e0e0; padding:8px 12px; border-radius:6px; font-size:14px;">
+                </div>
+                <div>
+                    <label style="color:#a0a8ff; font-size:13px; display:block; margin-bottom:6px;">角色数</label>
+                    <input type="number" id="home-char-count" value="6" min="2" max="30" style="width:100%; background:#0d0d1a; border:1px solid #333; color:#e0e0e0; padding:8px 12px; border-radius:6px; font-size:14px;">
+                </div>
+                <div>
+                    <label style="color:#a0a8ff; font-size:13px; display:block; margin-bottom:6px;">卷数</label>
+                    <input type="number" id="home-volumes" value="3" min="1" max="20" style="width:100%; background:#0d0d1a; border:1px solid #333; color:#e0e0e0; padding:8px 12px; border-radius:6px; font-size:14px;">
+                </div>
+                <div>
+                    <label style="color:#a0a8ff; font-size:13px; display:block; margin-bottom:6px;">每卷章节</label>
+                    <input type="number" id="home-chapters" value="5" min="1" max="50" style="width:100%; background:#0d0d1a; border:1px solid #333; color:#e0e0e0; padding:8px 12px; border-radius:6px; font-size:14px;">
+                </div>
+                <div>
+                    <label style="color:#a0a8ff; font-size:13px; display:block; margin-bottom:6px;">切片数</label>
+                    <input type="number" id="home-slices" value="20" min="4" max="40" style="width:100%; background:#0d0d1a; border:1px solid #333; color:#e0e0e0; padding:8px 12px; border-radius:6px; font-size:14px;">
+                </div>
+                <div>
+                    <label style="color:#a0a8ff; font-size:13px; display:block; margin-bottom:6px;">最大并发(bsz)</label>
+                    <input type="number" id="home-max-bsz" value="8" min="1" max="200" style="width:100%; background:#0d0d1a; border:1px solid #333; color:#e0e0e0; padding:8px 12px; border-radius:6px; font-size:14px;">
+                </div>
+            </div>
+            <div style="display:flex; gap:8px; align-items:center;">
+                <button class="btn" onclick="quickStartPipeline()" style="background:#2ed573; color:#1a1a2e; font-weight:bold; padding:12px 32px; font-size:16px;">⚡ 一键启动</button>
+                <span id="home-pipeline-status" style="color:#888; font-size:13px;"></span>
+            </div>
         </div>
     </div>
+
+    <div class="model-modal-overlay" id="model-modal-overlay">
+        <div class="model-modal">
+            <h2>选择推理模型</h2>
+            <div class="model-service-status" id="model-service-status">
+                <span class="dot stopped" id="modal-service-dot"></span>
+                <span id="modal-service-text" style="font-size:14px;">服务未启动</span>
+            </div>
+            <div id="model-list">加载中...</div>
+            <div class="model-modal-actions">
+                <button class="btn danger" id="btn-stop-model" onclick="stopModelService()" style="display:none;">停止服务</button>
+                <button class="btn" onclick="closeModelModal()">取消</button>
+                <button class="btn success" id="btn-start-model" onclick="startSelectedModel()">启动模型</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         async function loadStatus() {
             try {
                 const r = await fetch('/api/status');
                 const d = await r.json();
-                document.getElementById('status-bar').textContent = '管线状态: ' + d.state;
+                document.getElementById('status-bar').querySelector('span').textContent = '管线状态: ' + d.state;
+                document.getElementById('pipeline-state-text').textContent = d.state || '-';
                 const ws = d.world_status || {};
                 document.getElementById('stat-chars').textContent = ws.characters || 0;
                 document.getElementById('stat-factions').textContent = ws.factions || 0;
                 document.getElementById('stat-foreshadow').textContent = (ws.foreshadowings && ws.foreshadowings.planted) || 0;
-                document.getElementById('stat-timeline').textContent = ws.timeline_events || 0;
+                document.getElementById('stat-chapters').textContent = ws.chapters || 0;
             } catch(e) {
-                document.getElementById('status-bar').textContent = '无法连接服务器';
+                document.getElementById('status-bar').querySelector('span').textContent = '无法连接服务器';
             }
         }
+        async function loadSpecOverview() {
+            try {
+                const r = await fetch('/api/context/spec/fields');
+                const fields = await r.json();
+                const fieldMap = {};
+                fields.forEach(f => fieldMap[f.key] = f.value);
+                document.getElementById('spec-genre').textContent = fieldMap.genre || '-';
+                document.getElementById('spec-world').textContent = (fieldMap.world_view || '').substring(0, 100) + '...' || '-';
+                document.getElementById('spec-conflict').textContent = (fieldMap.conflict_types || '').substring(0, 100) + '...' || '-';
+                document.getElementById('spec-storyline').textContent = (fieldMap.storyline || '').substring(0, 150) + '...' || '-';
+            } catch(e) {}
+        }
         loadStatus();
+        loadSpecOverview();
         setInterval(loadStatus, 5000);
+
+        const indexSocket = io(location.host, { transports: ['websocket'], reconnection: true, reconnectionDelay: 3000 });
+        indexSocket.on('progress_update', (data) => {
+            const statusEl = document.getElementById('home-pipeline-status');
+            if (data.status === 'running' || data.status === 'started') {
+                const pct = data.total_tasks > 0 ? Math.round((data.completed_tasks || 0) / data.total_tasks * 100) : 0;
+                statusEl.textContent = `${data.current_stage || '运行中'} (${pct}%)`;
+                statusEl.style.color = '#2ed573';
+                document.getElementById('pipeline-state-text').textContent = 'running';
+            } else if (data.status === 'completed') {
+                statusEl.textContent = '管线已完成!';
+                statusEl.style.color = '#2ed573';
+                document.getElementById('pipeline-state-text').textContent = 'completed';
+            } else if (data.status === 'failed') {
+                statusEl.textContent = '管线失败: ' + (data.error || '');
+                statusEl.style.color = '#ff4757';
+                document.getElementById('pipeline-state-text').textContent = 'failed';
+            }
+        });
+
+        async function quickStartPipeline() {
+            const theme = document.getElementById('home-theme').value.trim();
+            const charCount = parseInt(document.getElementById('home-char-count').value) || 6;
+            const volumeCount = parseInt(document.getElementById('home-volumes').value) || 3;
+            const chaptersPerVol = parseInt(document.getElementById('home-chapters').value) || 5;
+            const slicesPerCh = parseInt(document.getElementById('home-slices').value) || 20;
+            const maxBsz = parseInt(document.getElementById('home-max-bsz').value) || 8;
+
+            const concurrencyConfig = {
+                character_concurrency: Math.min(charCount, maxBsz),
+                outline_concurrency: Math.min(chaptersPerVol, maxBsz),
+                chapter_concurrency: Math.min(4, maxBsz),
+                batch_size: maxBsz,
+            };
+
+            globalState.update({
+                theme: theme,
+                character_count: charCount,
+                volume_count: volumeCount,
+                chapters_per_volume: chaptersPerVol,
+                slices_per_chapter: slicesPerCh,
+                concurrency_config: concurrencyConfig,
+            });
+
+            const statusEl = document.getElementById('home-pipeline-status');
+            statusEl.textContent = '启动中（自动启动模型服务）...';
+            statusEl.style.color = '#ffa502';
+
+            try {
+                const r = await fetch('/api/pipeline/optimized', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        theme: theme,
+                        character_count: charCount,
+                        volume_count: volumeCount,
+                        chapters_per_volume: chaptersPerVol,
+                        slices_per_chapter: slicesPerCh,
+                        concurrency_config: concurrencyConfig,
+                        protagonist_names: [],
+                    }),
+                });
+                const d = await r.json();
+                if (d.status === 'started') {
+                    statusEl.textContent = '已启动! 跳转到矩阵视图...';
+                    statusEl.style.color = '#2ed573';
+                    setTimeout(() => { window.location.href = '/matrix'; }, 1500);
+                } else {
+                    statusEl.textContent = '失败: ' + (d.error || d.message || '未知错误');
+                    statusEl.style.color = '#ff4757';
+                }
+            } catch(e) {
+                statusEl.textContent = '请求失败: ' + e.message;
+                statusEl.style.color = '#ff4757';
+            }
+        }
+
+        let _selectedModelPath = null;
+        let _modelsData = [];
+
+        function openModelModal() {
+            document.getElementById('model-modal-overlay').classList.add('active');
+            loadModels();
+        }
+
+        function closeModelModal() {
+            document.getElementById('model-modal-overlay').classList.remove('active');
+        }
+
+        async function loadModels() {
+            const listEl = document.getElementById('model-list');
+            listEl.innerHTML = '加载模型列表...';
+
+            try {
+                const r = await fetch('/api/models');
+                const d = await r.json();
+                _modelsData = d.models || [];
+
+                const dot = document.getElementById('modal-service-dot');
+                const text = document.getElementById('modal-service-text');
+                const stopBtn = document.getElementById('btn-stop-model');
+                const startBtn = document.getElementById('btn-start-model');
+
+                if (d.service_running) {
+                    dot.className = 'dot running';
+                    text.textContent = '服务运行中 - ' + (d.current_model ? d.current_model.split(/[/\\]/).pop() : '未知模型');
+                    stopBtn.style.display = 'inline-block';
+                    startBtn.textContent = '切换模型';
+                } else {
+                    dot.className = 'dot stopped';
+                    text.textContent = '服务未启动';
+                    stopBtn.style.display = 'none';
+                    startBtn.textContent = '启动模型';
+                }
+
+                if (_selectedModelPath === null) {
+                    if (d.current_model) {
+                        _selectedModelPath = d.current_model;
+                    } else {
+                        const defaultModel = _modelsData.find(m => m.name.includes('rwkv7-g1f-2.9b-20260420-ctx8192'));
+                        const stDefault = defaultModel && _modelsData.find(m => m.name.includes('rwkv7-g1f-2.9b-20260420-ctx8192') && m.format === 'st');
+                        _selectedModelPath = stDefault ? stDefault.path : (defaultModel ? defaultModel.path : (_modelsData.find(m => m.is_recommended) || _modelsData[0]).path);
+                    }
+                }
+
+                if (_modelsData.length === 0) {
+                    listEl.innerHTML = '<div style="color:#ff4757; padding:20px; text-align:center;">未找到可用模型<br><span style="font-size:12px;color:#888;">请将 .st 或 .pth 模型文件放入 rwkv_models/ 目录</span></div>';
+                    return;
+                }
+
+                listEl.innerHTML = _modelsData.map((m, i) => {
+                    const selected = m.path === _selectedModelPath ? 'selected' : '';
+                    const badgeClass = m.is_recommended ? 'recommended' : (m.format === 'st' ? 'st' : 'pth');
+                    const badgeText = m.is_recommended ? '推荐' : m.format.toUpperCase();
+                    const tags = [];
+                    if (m.size_label) tags.push(m.size_label);
+                    if (m.version) tags.push(m.version);
+                    if (m.ctx) tags.push('ctx' + m.ctx);
+                    if (m.date) tags.push(m.date);
+                    let convertNote = '';
+                    if (m.format === 'pth' || m.format === 'pt') {
+                        if (m.has_st) {
+                            convertNote = '<div style="color:#2ed573; font-size:11px; margin-top:4px;">✓ 已有对应 .st 文件，启动时自动使用</div>';
+                        } else {
+                            convertNote = '<div style="color:#ffa502; font-size:11px; margin-top:4px;">⚠ 启动时将自动转换为 .st 格式（需等待）</div>';
+                        }
+                    }
+                    return `<div class="model-item ${selected}" onclick="selectModel(${i})" id="model-item-${i}">
+                        <div>
+                            <div class="model-name">${m.name}</div>
+                            <div class="model-info">${tags.map(t => '<span>' + t + '</span>').join('')}</div>
+                            ${convertNote}
+                        </div>
+                        <div style="text-align:right;">
+                            <span class="model-badge ${badgeClass}">${badgeText}</span>
+                            <div class="model-size">${m.size_mb} MB</div>
+                        </div>
+                    </div>`;
+                }).join('');
+            } catch(e) {
+                listEl.innerHTML = '<div style="color:#ff4757; padding:20px; text-align:center;">加载失败: ' + e.message + '</div>';
+            }
+        }
+
+        function selectModel(idx) {
+            _selectedModelPath = _modelsData[idx].path;
+            document.querySelectorAll('.model-item').forEach(el => el.classList.remove('selected'));
+            document.getElementById('model-item-' + idx).classList.add('selected');
+        }
+
+        async function startSelectedModel() {
+            if (!_selectedModelPath) {
+                alert('请先选择一个模型');
+                return;
+            }
+
+            const dot = document.getElementById('modal-service-dot');
+            const text = document.getElementById('modal-service-text');
+            const startBtn = document.getElementById('btn-start-model');
+
+            const selectedModel = _modelsData.find(m => m.path === _selectedModelPath);
+            const isPth = selectedModel && (selectedModel.format === 'pth' || selectedModel.format === 'pt');
+            const hasSt = selectedModel && selectedModel.has_st;
+
+            if (isPth && !hasSt) {
+                dot.className = 'dot starting';
+                text.textContent = '正在转换模型为 .st 格式，请耐心等待...';
+            } else if (isPth && hasSt) {
+                dot.className = 'dot starting';
+                text.textContent = '使用已有 .st 文件启动中...';
+            } else {
+                dot.className = 'dot starting';
+                text.textContent = '正在启动模型...';
+            }
+            startBtn.disabled = true;
+            startBtn.textContent = '处理中...';
+
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 1800000);
+
+                const r = await fetch('/api/models/start', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ model_path: _selectedModelPath }),
+                    signal: controller.signal,
+                });
+                clearTimeout(timeoutId);
+                const d = await r.json();
+
+                if (d.status === 'started') {
+                    dot.className = 'dot running';
+                    const actualModel = d.model ? d.model.split(/[/\\]/).pop() : _selectedModelPath.split(/[/\\]/).pop();
+                    text.textContent = '服务已启动 - ' + actualModel;
+                    startBtn.textContent = '切换模型';
+                    updateModelStatusBar(true, d.model || _selectedModelPath);
+                    setTimeout(() => { closeModelModal(); }, 1000);
+                } else if (d.status === 'already_running') {
+                    dot.className = 'dot running';
+                    text.textContent = d.message;
+                    startBtn.textContent = '切换模型';
+                } else {
+                    dot.className = 'dot stopped';
+                    text.textContent = '启动失败: ' + (d.message || '未知错误');
+                    startBtn.textContent = '启动模型';
+                }
+            } catch(e) {
+                dot.className = 'dot stopped';
+                text.textContent = '请求失败: ' + e.message;
+            }
+
+            startBtn.disabled = false;
+        }
+
+        async function stopModelService() {
+            const dot = document.getElementById('modal-service-dot');
+            const text = document.getElementById('modal-service-text');
+            const stopBtn = document.getElementById('btn-stop-model');
+            const startBtn = document.getElementById('btn-start-model');
+
+            dot.className = 'dot starting';
+            text.textContent = '正在停止服务...';
+            stopBtn.disabled = true;
+
+            try {
+                await fetch('/api/models/stop', { method: 'POST' });
+                dot.className = 'dot stopped';
+                text.textContent = '服务已停止';
+                stopBtn.style.display = 'none';
+                startBtn.textContent = '启动模型';
+                updateModelStatusBar(false, null);
+            } catch(e) {
+                text.textContent = '停止失败: ' + e.message;
+            }
+
+            stopBtn.disabled = false;
+        }
+
+        function updateModelStatusBar(running, modelPath) {
+            const dot = document.getElementById('model-dot');
+            const text = document.getElementById('model-status-text');
+            if (running && modelPath) {
+                dot.style.background = '#2ed573';
+                dot.style.boxShadow = '0 0 6px #2ed573';
+                text.textContent = modelPath.split(/[/\\]/).pop();
+            } else {
+                dot.style.background = '#ff4757';
+                dot.style.boxShadow = 'none';
+                text.textContent = '未选择模型';
+            }
+        }
+
+        async function checkModelStatus() {
+            try {
+                const r = await fetch('/api/models');
+                const d = await r.json();
+                if (d.service_running && d.current_model) {
+                    updateModelStatusBar(true, d.current_model);
+                } else {
+                    updateModelStatusBar(false, null);
+                }
+            } catch(e) {}
+        }
+
+        checkModelStatus();
+
+        globalState.connect();
+        globalState.syncFormInputs({
+            'character_count': 'home-char-count',
+            'volume_count': 'home-volumes',
+            'chapters_per_volume': 'home-chapters',
+            'slices_per_chapter': 'home-slices',
+        });
+        globalState.on('state_update', (changes) => {
+            if ('concurrency_config' in changes) {
+                const cc = changes.concurrency_config;
+                const el1 = document.getElementById('home-max-bsz');
+                if (el1) el1.value = cc.batch_size || 8;
+            }
+            if ('pipeline_status' in changes) {
+                const el = document.getElementById('pipeline-status');
+                if (el) {
+                    const s = changes.pipeline_status;
+                    el.textContent = s === 'running' ? '运行中' : s === 'completed' ? '已完成' : s === 'failed' ? '失败' : '空闲';
+                    el.style.color = s === 'running' ? '#ffa502' : s === 'completed' ? '#2ed573' : s === 'failed' ? '#ff4757' : '#888';
+                }
+            }
+        });
     </script>
 </body>
 </html>

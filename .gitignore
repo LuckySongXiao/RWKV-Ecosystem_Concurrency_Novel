@@ -179,3 +179,40 @@ cython_debug/
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
+
+# ============================================================
+# RWKV Project Specific - Files that cannot be uploaded to GitHub
+# ============================================================
+
+# AI/ML model files (85+ GB, far exceeds GitHub limits)
+rwkv_models/
+*.pth
+*.st
+*.safetensors
+*.pt
+*.onnx
+*.bin
+
+# RWKV Lightning C++ inference engine (1.74 GB of DLLs + executables)
+rwkv_lightning_libtorch_win/
+
+# Database files (runtime data, exceeds 100MB limit)
+*.db
+*.db-journal
+rwkv_sessions.db
+
+# Windows binary files
+*.dll
+*.exe
+
+# IDE/tool caches
+.arts/
+.codeartsdoer/
+
+# Runtime state and upload directories
+states/
+uploads/
+.checkpoint.json
+
+# Output logs
+output/logs/

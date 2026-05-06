@@ -1,0 +1,29 @@
+[
+  {
+    "name": "林逸风",
+    "identity": "青云宗首席弟子",
+    "personality": "正直坚毅、重情重义",
+    "ability": "天生剑骨，悟性极高",
+    "background": "出身寒门，幼年被青云宗收养",
+    "motivation": "守护苍生，证道成仙",
+    "role_type": "主角"
+  },
+  {
+    "name": "百里长风",
+    "identity": "前朝皇族后裔",
+    "personality": "隐忍多谋、重情重义",
+    "ability": "百毒不侵、易容遁形",
+    "background": "因政治斗争被家族所弃，流落民间",
+    "motivation": "寻出家族灭门真相，复仇雪恨",
+    "role_type": "配角"
+  },
+  {
+    "name": "僵王",
+    "identity": "僵尸王",
+    "personality": "残暴嗜血，反目弑主",
+    "ability": "僵煞之术，操控阴灵",
+    "background": "僵尸世家传人，渡劫失败堕入魔途",
+    "motivation": "吞噬众生修成混沌道体",
+    "role_type": "反派"
+  }
+]

@@ -201,7 +201,187 @@ my-novel-project/
 │   └── reviewer_narrative.st
 ├── pipeline.config.json        # 流程配置文件（API密钥、并发数等）
 └── README.md                   # 项目说明
-8. 快速启动建议
+## 9. 项目开发进度（截至 2026-04-27 第二次更新）
+
+### 9.1 总体完成度：**约 100%**
+
+基于 `tasks.md` 的9个阶段任务清单，核心代码实现已全部完成，系统已实际运行并产出内容，全部测试用例通过。
+
+### 9.2 各阶段完成情况
+
+| 阶段 | 任务编号 | 状态 | 说明 |
+|------|----------|------|------|
+| 一：项目骨架与基础设施 | 1.1-1.3 | ✅ 100% | `src/core/config.py`, `src/core/file_manager.py` 已实现 |
+| 二：RWKV API 客户端 | 2.1-2.3 | ✅ 100% | `src/core/rwkv_client.py` 已实现，支持三种端点 |
+| 三：Prompt 构造器 | 3.1-3.3 | ✅ 100% | `src/core/prompt_builder.py` 已实现，含状态注入 |
+| 四：世界状态引擎 | 4.1-4.5 | ✅ 100% | `src/core/world_state_engine.py`, `state_change_parser.py` 已实现 |
+| 五：Agent 工具注册中心 | 5.1-5.3 | ✅ 100% | `src/tools/tool_registry.py`, `builtin_tools.py` 已实现 |
+| 六：Agent 实现 | 6.1-6.5 | ✅ 100% | `src/agents/` 下5个Agent全部实现 |
+| 七：中央调度器与管线编排 | 7.1-7.4 | ✅ 100% | `src/orchestrator.py`, `src/workflow/` 已实现 |
+| 八：异常处理与日志 | 8.1-8.2 | ✅ 100% | `src/core/logger.py`, `src/core/error_handler.py` 已实现 |
+| 九：集成测试与验证 | 9.1-9.4 | ✅ 100% | 35个测试用例全部通过，覆盖管线、批量、冲突、断点、异常处理 |
+
+### 9.3 实际运行证据
+
+系统已成功运行并生成以下内容：
+
+**宏观规划层产出：**
+- `output/outline.json` — 全书大纲
+- `output/volumes.jsonl` — 各卷详细大纲
+- `output/chapters.jsonl` — 各章节详细大纲
+
+**超级并发创作层产出：**
+- `output/draft/0001.md` ~ `0012.md` — 12章正文初稿（含状态变更JSON）
+
+**世界状态串行结算层产出：**
+- `output/tracking/characters.jsonl` — 角色状态实时档案
+- `output/tracking/factions.jsonl` — 势力状态实时档案
+- `output/tracking/economy.json` — 经济体系快照
+- `output/tracking/entity_store.json` — 知识图谱（关系、伏笔、时间线）
+- `output/tracking/changelog.md` — 状态变更日志
+
+**运行日志：**
+- `output/logs/pipeline_20260424.log` — 管线运行日志（4月24日）
+- `output/logs/pipeline_20260425.log` — 管线运行日志（4月25日）
+- `output/logs/agent_calls.jsonl` — Agent调用记录
+- `.checkpoint.json` — 断点恢复文件（说明断点机制已启用）
+- `rwkv_sessions.db` — 会话数据库（说明系统已实际运行）
+
+### 9.4 已完成增强事项（2026-04-27 更新）
+
+1. **异常处理系统** ✅
+   - `src/core/error_handler.py` — 统一异常处理器
+   - API重试机制（指数退避策略）
+   - 批量失败处理与死循环检测
+   - JSON解析错误容错
+   - 未解决冲突标记与追踪
+
+2. **采样参数管理** ✅
+   - `src/core/config.py` 中 `SamplingParams` 增强
+   - 参数验证与自动修正
+   - `safe_create()` 安全创建方法
+
+3. **CLI人机交互界面** ✅
+   - `src/cli.py` — 命令行交互接口
+   - 冲突裁决界面
+   - 审批请求处理
+   - 拒绝追踪与死循环预警
+
+4. **世界状态初始化** ✅
+   - `src/core/world_state_engine.py` 中 `init_from_spec()` 增强
+   - 自动解析 specification.md 中的角色、势力、经济设定
+   - 生成初始 characters.jsonl、factions.jsonl、economy.json
+
+5. **全面测试覆盖** ✅
+   - `tests/test_pipeline.py` — 端到端管线测试（6个用例）
+   - `tests/test_batch.py` — 超级并发性能验证（4个用例）
+   - `tests/test_conflict.py` — 世界状态冲突检测（5个用例）
+   - `tests/test_checkpoint.py` — 断点恢复验证（5个用例）
+   - `tests/test_error_handler.py` — 异常处理验证（15个用例）
+   - **总计：35个测试用例，全部通过 ✅**
+
+6. **冲突检测增强** ✅
+    - 位置时间冲突检测（position_temporal）
+    - 唯一物品归属冲突检测（unique_item）
+    - 势力领地重叠冲突检测（territory）
+
+### 9.5 最新增强（2026-04-27 第二次更新）
+
+1. **Web界面管线监控增强** ✅
+   - 实时统计面板（章节数、角色数、势力数、冲突数、审批数）
+   - 进度条显示章节生成进度
+   - 管线运行时间实时显示
+   - 冲突和审批预警提示
+   - 阶段状态可视化高亮
+
+2. **统计与报告API** ✅
+   - `/api/stats/summary` — 项目统计摘要
+   - `/api/world/chapters/count` — 章节计数
+   - `/api/status` 增强 — 包含未解决冲突信息
+
+3. **工具注册中心增强** ✅
+   - `get_unresolved_conflicts()` — 获取未解决冲突
+   - `add_unresolved_conflict()` — 添加未解决冲突
+   - `resolve_conflict()` — 标记冲突已解决
+
+4. **世界状态引擎增强** ✅
+   - `get_world_status()` 返回字段统一（character_count, faction_count, chapter_count）
+
+### 9.5 项目目录实际结构
+
+```
+RWKV_生态_并发式小说/
+├── context/                    # 人类作者编写的初始设定（AI只读）
+│   ├── specification.md        # 核心世界观
+│   ├── specification_expanded.md
+│   ├── specification_filled.md
+│   └── style-guide.md          # 写作风格约束
+├── output/                     # AI生成的所有内容
+│   ├── outline.json            # 全书大纲 ✅ 已生成
+│   ├── volumes.jsonl           # 每行一个卷的详细大纲 ✅ 已生成
+│   ├── chapters.jsonl          # 每行一个章节的详细大纲 ✅ 已生成
+│   ├── draft/                  # 各章节Markdown初稿 ✅ 12章已生成
+│   │   ├── 0001.md ~ 0012.md
+│   ├── tracking/               # 世界状态档案库 ✅ 已生成
+│   │   ├── characters.jsonl
+│   │   ├── factions.jsonl
+│   │   ├── economy.json
+│   │   ├── entity_store.json
+│   │   └── changelog.md
+│   ├── logs/                   # 运行日志 ✅ 已生成
+│   │   ├── agent_calls.jsonl
+│   │   ├── pipeline_20260424.log
+│   │   └── pipeline_20260425.log
+│   └── final/                  # 最终审定后成书（待审核通过后生成）
+├── src/                        # 核心源代码 ✅ 全部实现
+│   ├── agents/                 # Agent实现
+│   │   ├── base_agent.py
+│   │   ├── editor_agent.py
+│   │   ├── writer_agent.py
+│   │   ├── world_manager_agent.py
+│   │   ├── reviewer_agent.py
+│   │   └── roleplay_agent.py
+│   ├── core/                   # 核心组件
+│   │   ├── config.py
+│   │   ├── file_manager.py
+│   │   ├── rwkv_client.py
+│   │   ├── prompt_builder.py
+│   │   ├── world_state_engine.py
+│   │   ├── state_change_parser.py
+│   │   ├── logger.py
+│   │   └── ...（其他工具模块）
+│   ├── tools/                  # 工具注册中心
+│   │   ├── tool_registry.py
+│   │   └── builtin_tools.py
+│   ├── workflow/               # 工作流编排
+│   │   ├── chapter_workflow.py
+│   │   ├── outline_workflow.py
+│   │   ├── review_workflow.py
+│   │   ├── state_workflow.py
+│   │   └── roleplay_workflow.py
+│   ├── web/                    # Web界面（可选）
+│   │   ├── app.py
+│   │   └── templates/
+│   ├── orchestrator.py         # 中央调度器
+│   └── __init__.py
+├── rwkv_models/                # 模型文件
+│   └── rwkv7-g1c-13.3b-20251231-ctx8192.pth
+│   └── rwkv7-g1c-13.3b-20251231-ctx8192.st
+├── rwkv_lightning_libtorch_win/ # RWKV Lightning Windows依赖库
+├── scripts/                    # 辅助脚本
+│   ├── convert_model.py
+│   ├── convert_safetensors.py
+│   └── start_server.bat
+├── pipeline.config.json        # 流程配置文件
+├── main.py                     # 入口脚本
+├── .checkpoint.json            # 断点恢复文件
+├── rwkv_sessions.db            # 会话数据库
+└── deepseek_markdown_20260424_48ae05.md  # 本文档
+```
+
+---
+
+## 10. 快速启动建议
 准备State文件：根据目标小说类型（仙侠、科幻、都市等），使用RWKV Runner微调或寻找开源State文件，放入states/目录。
 
 编写设定文档：在context/specification.md中详细描述世界观、主要人物、力量体系、故事主线。

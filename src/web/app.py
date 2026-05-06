@@ -1,7 +1,11 @@
 """Web UI - Flask 应用
 
 提供管线管理、世界状态查看、Roleplay 交互、冲突裁决等 Web 界面。
+支持 WebSocket 实时推送管线进度到矩阵视图。
 """
+
+from gevent import monkey
+monkey.patch_all()
 
 import json
 import os
@@ -9,8 +13,11 @@ import threading
 from typing import Optional
 
 from flask import Flask, render_template, jsonify, request, redirect, url_for
+from flask_socketio import SocketIO, emit
 
 from src.orchestrator import Orchestrator
+
+socketio = SocketIO(cors_allowed_origins="*", async_mode="gevent")
 
 
 def create_app(config_path: str = "pipeline.config.json") -> Flask:
@@ -18,6 +25,8 @@ def create_app(config_path: str = "pipeline.config.json") -> Flask:
     app = Flask(__name__,
                 template_folder=os.path.join(os.path.dirname(__file__), "templates"),
                 static_folder=os.path.join(os.path.dirname(__file__), "static"))
+    app.config["SECRET_KEY"] = "rwkv-novel-socketio"
+    socketio.init_app(app)
 
     orchestrator: Optional[Orchestrator] = None
     pipeline_thread: Optional[threading.Thread] = None
@@ -27,6 +36,91 @@ def create_app(config_path: str = "pipeline.config.json") -> Flask:
         if orchestrator is None:
             orchestrator = Orchestrator(config_path)
         return orchestrator
+
+    # ---- WebSocket 事件 ----
+    @socketio.on("connect")
+    def handle_connect():
+        emit("connected", {"message": "矩阵视图已连接"})
+
+    @socketio.on("disconnect")
+    def handle_disconnect():
+        pass
+
+    @socketio.on("request_progress")
+    def handle_request_progress():
+        optimized_orch = app.config.get("optimized_pipeline_orchestrator")
+        if optimized_orch:
+            emit("progress_update", optimized_orch.get_progress())
+        else:
+            emit("progress_update", {
+                "status": "idle",
+                "current_stage": "",
+                "total_tasks": 0,
+                "completed_tasks": 0,
+                "chapter_matrix": [],
+            })
+
+    def _emit_progress(data: dict):
+        try:
+            socketio.emit("progress_update", data)
+            state_update = {
+                "pipeline_status": data.get("status", "idle"),
+                "pipeline_stage": data.get("current_stage", ""),
+            }
+            if data.get("total_tasks", 0) > 0:
+                state_update["pipeline_progress"] = round(
+                    (data.get("completed_tasks", 0) / data["total_tasks"]) * 100, 1
+                )
+            global_state.update(state_update)
+            socketio.emit("state_update", state_update)
+        except Exception:
+            pass
+
+    global_state = {
+        "theme": "",
+        "genres": [],
+        "character_count": 6,
+        "protagonist_names": [],
+        "antagonist_names": [],
+        "volume_count": 3,
+        "chapters_per_volume": 5,
+        "slices_per_chapter": 20,
+        "concurrency_config": {
+            "character_concurrency": 6,
+            "outline_concurrency": 5,
+            "chapter_concurrency": 4,
+            "batch_size": 8,
+        },
+        "extra_context": "",
+        "pipeline_status": "idle",
+        "pipeline_stage": "",
+        "pipeline_progress": 0,
+        "spec_fields": {},
+        "style_guide": "",
+    }
+
+    def _broadcast_state(changes: dict):
+        try:
+            global_state.update(changes)
+            socketio.emit("state_update", changes)
+        except Exception:
+            pass
+
+    @socketio.on("request_state")
+    def handle_request_state():
+        emit("state_update", global_state)
+
+    @app.route("/api/global/state")
+    def api_global_state():
+        return jsonify(global_state)
+
+    @app.route("/api/global/state", methods=["POST"])
+    def api_update_global_state():
+        data = request.json
+        if not data:
+            return jsonify({"status": "error", "message": "empty data"})
+        _broadcast_state(data)
+        return jsonify({"status": "ok"})
 
     # ---- 页面路由 ----
     @app.route("/")
@@ -53,11 +147,65 @@ def create_app(config_path: str = "pipeline.config.json") -> Flask:
     def create_page():
         return render_template("create.html")
 
+    @app.route("/matrix")
+    def matrix_page():
+        return render_template("matrix.html")
+
     # ---- API 路由 ----
+    @app.route("/api/models")
+    def api_list_models():
+        """列出可用模型"""
+        from src.core.rwkv_service import scan_available_models, get_service_manager
+        import os
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        models = scan_available_models(project_root)
+        mgr = get_service_manager(project_root)
+        current_model = mgr.get_current_model()
+        service_running = mgr.is_service_running()
+        return jsonify({
+            "models": models,
+            "current_model": current_model,
+            "service_running": service_running,
+        })
+
+    @app.route("/api/models/start", methods=["POST"])
+    def api_start_model():
+        """启动指定模型的服务"""
+        from src.core.rwkv_service import ensure_rwkv_service, get_service_manager
+        import os
+        data = request.json
+        model_path = data.get("model_path", "")
+
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        mgr = get_service_manager(project_root)
+
+        if mgr.is_service_running():
+            return jsonify({"status": "already_running", "message": "RWKV 服务已在运行，请先停止当前服务再切换模型"})
+
+        if model_path:
+            if not os.path.exists(model_path):
+                return jsonify({"status": "error", "message": f"模型文件不存在: {model_path}"})
+            mgr.set_model(model_path)
+
+        success = ensure_rwkv_service(project_root, model_path=model_path if model_path else None)
+        if success:
+            return jsonify({"status": "started", "message": f"模型服务已启动", "model": mgr.get_current_model()})
+        else:
+            return jsonify({"status": "error", "message": "模型服务启动失败"})
+
+    @app.route("/api/models/stop", methods=["POST"])
+    def api_stop_model():
+        """停止模型服务"""
+        from src.core.rwkv_service import shutdown_rwkv_service
+        shutdown_rwkv_service()
+        return jsonify({"status": "stopped"})
+
     @app.route("/api/status")
     def api_status():
         orch = get_orchestrator()
-        return jsonify(orch.get_status())
+        status = orch.get_status()
+        status["unresolved_conflicts"] = orch._tools.get_unresolved_conflicts()
+        return jsonify(status)
 
     @app.route("/api/pipeline/start", methods=["POST"])
     def api_pipeline_start():
@@ -82,6 +230,184 @@ def create_app(config_path: str = "pipeline.config.json") -> Flask:
         pipeline_thread = threading.Thread(target=orch.run, daemon=True)
         pipeline_thread.start()
         return jsonify({"status": "resumed"})
+
+    @app.route("/api/pipeline/auto", methods=["POST"])
+    def api_pipeline_auto():
+        """全自动管线 - 从主题到正文的完整流程，自动启动服务"""
+        from src.core.auto_pipeline import AutoPipelineOrchestrator
+        
+        data = request.json
+        theme = data.get("theme", "仙侠")
+        protagonist_names = data.get("protagonist_names", [])
+        antagonist_names = data.get("antagonist_names", [])
+        volume_count = data.get("volume_count", 3)
+        chapters_per_volume = data.get("chapters_per_volume", 5)
+        max_concurrency = data.get("max_concurrency", 200)
+        extra_context = data.get("extra_context", "")
+
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+        try:
+            from src.core.rwkv_service import ensure_rwkv_service, get_service_manager
+            mgr = get_service_manager(project_root)
+            if not mgr.is_service_running():
+                if not ensure_rwkv_service(project_root):
+                    return jsonify({
+                        "status": "error",
+                        "message": "RWKV 模型服务启动失败，请检查模型配置",
+                    })
+        except Exception as e:
+            return jsonify({
+                "status": "error",
+                "message": f"无法启动 RWKV 服务: {e}",
+            })
+
+        def run_auto_pipeline():
+            try:
+                orchestrator = AutoPipelineOrchestrator(config_path, max_concurrency)
+                result = orchestrator.run_full_pipeline(
+                    theme=theme,
+                    protagonist_names=protagonist_names,
+                    antagonist_names=antagonist_names,
+                    volume_count=volume_count,
+                    chapters_per_volume=chapters_per_volume,
+                    extra_context=extra_context,
+                )
+                # 保存结果到全局变量
+                app.config['last_auto_pipeline_result'] = result
+            except Exception as e:
+                app.config['last_auto_pipeline_result'] = {
+                    "status": "failed",
+                    "error": str(e),
+                }
+
+        # 在后台线程中运行
+        thread = threading.Thread(target=run_auto_pipeline, daemon=True)
+        thread.start()
+
+        return jsonify({
+            "status": "started",
+            "message": "全自动管线已启动，请在状态中查看进度",
+        })
+
+    @app.route("/api/pipeline/status")
+    def api_pipeline_status():
+        """获取管线状态"""
+        orch = get_orchestrator()
+        status = orch.get_status()
+        
+        # 添加全自动管线结果
+        auto_result = app.config.get('last_auto_pipeline_result')
+        if auto_result:
+            status['auto_pipeline_result'] = auto_result
+        
+        return jsonify(status)
+
+    @app.route("/api/pipeline/progress")
+    def api_pipeline_progress():
+        """获取管线进度（用于矩阵视图）"""
+        optimized_orch = app.config.get('optimized_pipeline_orchestrator')
+        if optimized_orch:
+            return jsonify(optimized_orch.get_progress())
+        return jsonify({
+            "status": "idle",
+            "current_stage": "",
+            "total_tasks": 0,
+            "completed_tasks": 0,
+            "chapter_matrix": [],
+        })
+
+    @app.route("/api/pipeline/optimized", methods=["POST"])
+    def api_pipeline_optimized():
+        """优化版全自动管线 - 支持章节切片和矩阵视图，自动启动服务"""
+        from src.core.optimized_pipeline import OptimizedPipelineOrchestrator
+        
+        data = request.json
+        theme = data.get("theme", "仙侠")
+        character_count = data.get("character_count", 6)
+        protagonist_names = data.get("protagonist_names", [])
+        antagonist_names = data.get("antagonist_names", [])
+        volume_count = data.get("volume_count", 3)
+        chapters_per_volume = data.get("chapters_per_volume", 5)
+        slices_per_chapter = data.get("slices_per_chapter", 20)
+        concurrency_config = data.get("concurrency_config", {})
+        extra_context = data.get("extra_context", "")
+
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+        try:
+            from src.core.rwkv_service import ensure_rwkv_service, get_service_manager
+            mgr = get_service_manager(project_root)
+            if not mgr.is_service_running():
+                if not ensure_rwkv_service(project_root):
+                    return jsonify({
+                        "status": "error",
+                        "message": "RWKV 模型服务启动失败，请检查模型配置",
+                    })
+        except Exception as e:
+            return jsonify({
+                "status": "error",
+                "message": f"无法启动 RWKV 服务: {e}",
+            })
+
+        _broadcast_state({
+            "theme": theme,
+            "character_count": character_count,
+            "protagonist_names": protagonist_names,
+            "antagonist_names": antagonist_names,
+            "volume_count": volume_count,
+            "chapters_per_volume": chapters_per_volume,
+            "slices_per_chapter": slices_per_chapter,
+            "concurrency_config": concurrency_config,
+            "extra_context": extra_context,
+            "pipeline_status": "running",
+            "pipeline_stage": "starting",
+        })
+
+        def run_optimized_pipeline():
+            try:
+                orchestrator = OptimizedPipelineOrchestrator(
+                    config_path, concurrency_config,
+                    progress_callback=_emit_progress,
+                )
+                app.config['optimized_pipeline_orchestrator'] = orchestrator
+                
+                result = orchestrator.run_pipeline(
+                    theme=theme,
+                    character_count=character_count,
+                    protagonist_names=protagonist_names,
+                    antagonist_names=antagonist_names,
+                    volume_count=volume_count,
+                    chapters_per_volume=chapters_per_volume,
+                    slices_per_chapter=slices_per_chapter,
+                    extra_context=extra_context,
+                )
+                app.config['last_optimized_pipeline_result'] = result
+                _emit_progress(orchestrator.get_progress())
+                _broadcast_state({
+                    "pipeline_status": result.get("status", "completed"),
+                    "pipeline_stage": "",
+                })
+            except Exception as e:
+                app.config['last_optimized_pipeline_result'] = {
+                    "status": "failed",
+                    "error": str(e),
+                }
+                _emit_progress({"status": "failed", "error": str(e),
+                                "current_stage": "", "total_tasks": 0,
+                                "completed_tasks": 0, "chapter_matrix": []})
+                _broadcast_state({
+                    "pipeline_status": "failed",
+                    "pipeline_stage": "",
+                })
+
+        thread = threading.Thread(target=run_optimized_pipeline, daemon=True)
+        thread.start()
+
+        return jsonify({
+            "status": "started",
+            "message": "优化版管线已启动，请在矩阵视图中查看进度",
+        })
 
     # ---- 世界状态 API ----
     @app.route("/api/world/characters")
@@ -120,6 +446,70 @@ def create_app(config_path: str = "pipeline.config.json") -> Flask:
         from_ch = int(request.args.get("from", 0))
         to_ch = int(request.args.get("to", 99999))
         return jsonify(orch.world_engine.query_timeline(from_ch, to_ch))
+
+    @app.route("/api/world/chapters/count")
+    def api_chapters_count():
+        orch = get_orchestrator()
+        try:
+            chapters = orch._fm.read_jsonl(orch._fm.chapters_path())
+            return jsonify({"count": len(chapters)})
+        except Exception:
+            return jsonify({"count": 0})
+
+    # ---- 统计与报告 API ----
+    @app.route("/api/stats/summary")
+    def api_stats_summary():
+        """获取项目统计摘要"""
+        import os
+        from datetime import datetime
+        
+        orch = get_orchestrator()
+        
+        # 统计生成内容
+        draft_count = 0
+        draft_dir = orch._fm.get_draft_dir()
+        if os.path.exists(draft_dir):
+            draft_count = len([f for f in os.listdir(draft_dir) if f.endswith('.md')])
+        
+        # 统计章节
+        try:
+            chapters = orch._fm.read_jsonl(orch._fm.chapters_path())
+            chapter_count = len(chapters)
+        except Exception:
+            chapter_count = 0
+        
+        # 统计卷
+        try:
+            volumes = orch._fm.read_jsonl(orch._fm.volumes_path())
+            volume_count = len(volumes)
+        except Exception:
+            volume_count = 0
+        
+        # 统计日志
+        log_count = 0
+        log_dir = os.path.join(orch._fm.get_output_dir(), "logs")
+        if os.path.exists(log_dir):
+            log_count = len([f for f in os.listdir(log_dir) if f.endswith('.log')])
+        
+        # 检查点信息
+        checkpoint_info = None
+        if os.path.exists(orch._checkpoint_path):
+            try:
+                with open(orch._checkpoint_path, 'r', encoding='utf-8') as f:
+                    checkpoint_info = json.load(f)
+            except Exception:
+                pass
+        
+        return jsonify({
+            "draft_chapters": draft_count,
+            "total_chapters": chapter_count,
+            "total_volumes": volume_count,
+            "characters": len(orch.world_engine.characters),
+            "factions": len(orch.world_engine.factions),
+            "log_files": log_count,
+            "checkpoint": checkpoint_info,
+            "generated_at": datetime.now().isoformat(),
+        })
 
     # ---- Roleplay API ----
     @app.route("/api/roleplay/dialogue", methods=["POST"])
@@ -189,6 +579,56 @@ def create_app(config_path: str = "pipeline.config.json") -> Flask:
         orch = get_orchestrator()
         orch._tools.revoke_reviewable(result_id)
         return jsonify({"status": "revoked"})
+
+    @app.route("/api/review/conflict/resolve", methods=["POST"])
+    def api_resolve_conflict():
+        """解决冲突"""
+        orch = get_orchestrator()
+        data = request.json
+        conflict_data = data.get("conflict", {})
+        resolution = data.get("resolution", "manual")
+
+        resolved = False
+        for conflict in orch.world_engine._conflicts:
+            if (conflict.conflict_type == conflict_data.get("conflict_type") and
+                conflict.chapter_id == conflict_data.get("chapter_id") and
+                conflict.description == conflict_data.get("description")):
+                conflict.resolution = resolution
+                resolved = True
+                break
+
+        if resolved:
+            orch.world_engine.persist()
+            return jsonify({"status": "resolved", "resolution": resolution})
+
+        return jsonify({"status": "not_found"})
+
+    @app.route("/api/review/results")
+    def api_review_results():
+        """获取审核结果列表"""
+        orch = get_orchestrator()
+        review_dir = os.path.join(orch._fm.get_output_dir(), "tracking")
+        results = []
+
+        latest_path = os.path.join(review_dir, "review_latest.json")
+        if os.path.exists(latest_path):
+            try:
+                with open(latest_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                chapter_details = data.get("chapter_details", {})
+                for ch_id, detail in chapter_details.items():
+                    results.append({
+                        "chapter_id": int(ch_id) if str(ch_id).isdigit() else ch_id,
+                        "passed": data.get("passed", False),
+                        "quality_score": detail.get("quality_score", 0),
+                        "content_length": detail.get("content_length", 0),
+                        "issues": detail.get("issues", []),
+                        "rejections": data.get("rejections", []),
+                    })
+            except Exception:
+                pass
+
+        return jsonify(results)
 
     # ---- 设定文档 API（小说创建起始输入）----
     @app.route("/api/context/spec")
@@ -262,6 +702,7 @@ def create_app(config_path: str = "pipeline.config.json") -> Flask:
                     os.path.join(orch._fm.context_dir, "style-guide.md"),
                     style_text
                 )
+            _broadcast_state({"spec_fields": {f.key: f.value for f in fields}})
             return jsonify({"status": "saved", "field_count": len(fields)})
         return jsonify({"status": "no_fields"})
 
@@ -440,6 +881,7 @@ def create_app(config_path: str = "pipeline.config.json") -> Flask:
             os.path.join(orch._fm.context_dir, "style-guide.md"),
             content
         )
+        _broadcast_state({"style_guide": content})
         return jsonify({"status": "saved", "length": len(content)})
 
     @app.route("/api/context/expand", methods=["POST"])
@@ -510,22 +952,23 @@ def create_app(config_path: str = "pipeline.config.json") -> Flask:
         else:
             # 通用补全prompt
             prompt = (
-                f"Instruction: 基于以下题材和世界观，生成{field_label}的详细设定。\n"
+                f"User: 基于以下题材和世界观，生成{field_label}的详细设定。\n"
                 f"题材: {genre}\n"
                 f"已有设定:\n{spec_context[:1500]}\n"
                 f"直接输出内容文本，不需要JSON格式。\n"
-                f"Response: "
+                f"\nAssistant: "
             )
 
         # 调用模型
         from src.core.config import SamplingParams
         sampling = SamplingParams(temperature=1.0, top_p=0.1, max_tokens=2048)
         try:
-            result = orch._client.openai_chat_completions(
-                messages=[{"role": "user", "content": prompt}],
+            results = orch._client.big_batch_completions(
+                contents=[prompt],
                 sampling=sampling,
                 stream=False,
             )
+            result = results[0] if results else ""
 
             # 解析结果
             if field_key == "characters":
@@ -630,7 +1073,26 @@ def create_app(config_path: str = "pipeline.config.json") -> Flask:
     return app
 
 
-def run_server(config_path: str = "pipeline.config.json", host: str = "0.0.0.0", port: int = 5000):
-    """启动 Web UI 服务器"""
+def run_server(config_path: str = "pipeline.config.json", host: str = "0.0.0.0", port: int = 5000, auto_start_rwkv: bool = True):
+    """启动 Web UI 服务器
+    
+    Args:
+        config_path: 配置文件路径
+        host: 监听地址
+        port: 监听端口
+        auto_start_rwkv: 是否自动启动 RWKV 推理服务
+    """
+    # 自动启动 RWKV 推理服务
+    if auto_start_rwkv:
+        try:
+            from src.core.rwkv_service import ensure_rwkv_service
+            import os
+            project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            if not ensure_rwkv_service(project_root):
+                print("[WARNING] RWKV 服务未启动，Web UI 仍可访问但管线功能不可用")
+        except Exception as e:
+            print(f"[WARNING] 无法启动 RWKV 服务: {e}")
+            print("[INFO] Web UI 仍可访问，但管线功能需要手动启动 RWKV 服务")
+    
     app = create_app(config_path)
-    app.run(host=host, port=port, debug=False)
+    socketio.run(app, host=host, port=port, debug=False, allow_unsafe_werkzeug=True)

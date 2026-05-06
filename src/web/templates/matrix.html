@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>章节并发矩阵 - RWKV小说创作</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0a0a15; color: #e0e0e0; padding: 20px; }
+        .nav { background: #1a1a2e; padding: 12px 20px; margin-bottom: 20px; border-radius: 8px; display: flex; gap: 10px; flex-wrap: wrap; }
+        .nav a { color: #a0a8ff; text-decoration: none; padding: 8px 16px; border-radius: 4px; transition: all 0.2s; }
+        .nav a:hover { background: #2a2a4e; }
+        .nav a.active { background: #2a2a4e; color: #fff; }
+        .container { max-width: 1800px; margin: 0 auto; }
+        h1 { color: #a0a8ff; margin-bottom: 20px; font-size: 24px; }
+
+        .status-bar { background: #16213e; padding: 16px; border-radius: 8px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
+        .status-items { display: flex; gap: 20px; flex-wrap: wrap; }
+        .status-item { display: flex; align-items: center; gap: 8px; }
+        .status-label { color: #888; font-size: 13px; }
+        .status-value { color: #2ed573; font-size: 14px; font-weight: bold; }
+        .status-value.running { color: #ffa502; }
+        .status-value.completed { color: #2ed573; }
+        .status-value.idle { color: #666; }
+        .status-value.error { color: #ff4757; }
+
+        .overall-progress { background: #16213e; padding: 16px; border-radius: 8px; margin-bottom: 20px; }
+        .overall-progress-bar { height: 8px; background: #333; border-radius: 4px; margin-top: 8px; overflow: hidden; }
+        .overall-progress-fill { height: 100%; background: linear-gradient(90deg, #7b8cff, #2ed573); border-radius: 4px; transition: width 0.5s; }
+        .overall-progress-text { display: flex; justify-content: space-between; font-size: 13px; color: #888; margin-top: 4px; }
+
+        .stage-indicator { background: #16213e; padding: 16px; border-radius: 8px; margin-bottom: 20px; }
+        .stage-list { display: flex; gap: 8px; flex-wrap: wrap; }
+        .stage-item { padding: 8px 16px; border-radius: 6px; font-size: 13px; background: #1a1a2e; border: 1px solid #333; color: #666; transition: all 0.3s; }
+        .stage-item.active { background: #2d1f3d; border-color: #ffa502; color: #ffa502; }
+        .stage-item.completed { background: #1a2e1a; border-color: #2ed573; color: #2ed573; }
+
+        .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 20px; }
+        .stat-card { background: #16213e; border: 1px solid #333; border-radius: 8px; padding: 14px; text-align: center; }
+        .stat-card .num { font-size: 28px; color: #7b8cff; font-weight: bold; }
+        .stat-card .label { font-size: 12px; color: #888; margin-top: 4px; }
+
+        .controls { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+        .btn { padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; transition: all 0.2s; }
+        .btn.primary { background: #7b8cff; color: #fff; }
+        .btn.primary:hover { background: #6a7bef; }
+        .btn.success { background: #2ed573; color: #000; }
+        .btn.warn { background: #ffa502; color: #1a1a2e; }
+        .btn.danger { background: #ff4757; color: #fff; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .matrix-container { background: #16213e; border-radius: 8px; padding: 20px; overflow-x: auto; }
+        .matrix-header { color: #a0a8ff; font-size: 16px; font-weight: bold; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; }
+
+        .chapter-block { margin-bottom: 24px; border: 1px solid #222; border-radius: 8px; overflow: hidden; }
+        .chapter-header { background: #1a1a2e; padding: 10px 16px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+        .chapter-header:hover { background: #222240; }
+        .chapter-title { color: #7b8cff; font-weight: bold; font-size: 15px; }
+        .chapter-progress { display: flex; align-items: center; gap: 10px; }
+        .chapter-progress-text { font-size: 12px; color: #888; }
+        .chapter-progress-bar { width: 120px; height: 6px; background: #333; border-radius: 3px; overflow: hidden; }
+        .chapter-progress-fill { height: 100%; background: linear-gradient(90deg, #7b8cff, #2ed573); border-radius: 3px; transition: width 0.5s; }
+        .chapter-status-badge { padding: 3px 10px; border-radius: 4px; font-size: 11px; font-weight: bold; }
+        .chapter-status-badge.pending { background: #1a1a2e; color: #666; border: 1px solid #333; }
+        .chapter-status-badge.in_progress { background: #2d1f3d; color: #ffa502; border: 1px solid #ffa502; }
+        .chapter-status-badge.completed { background: #1a2e1a; color: #2ed573; border: 1px solid #2ed573; }
+
+        .chapter-body { padding: 12px; }
+        .slice-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: stretch; }
+        .slice-row:last-child { margin-bottom: 0; }
+        .row-label { width: 50px; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #666; background: #0d0d1a; border-radius: 4px; flex-shrink: 0; writing-mode: vertical-rl; text-orientation: mixed; letter-spacing: 2px; }
+
+        .slice-box { flex: 1; min-width: 0; background: #0d0d1a; border: 1px solid #222; border-radius: 6px; overflow: hidden; transition: all 0.3s; display: flex; flex-direction: column; }
+        .slice-box:hover { border-color: #444; }
+        .slice-box.pending { border-color: #222; }
+        .slice-box.in_progress { border-color: #ffa502; box-shadow: 0 0 8px rgba(255,165,2,0.2); }
+        .slice-box.completed { border-color: #2ed573; }
+        .slice-box.error { border-color: #ff4757; }
+
+        .slice-label { padding: 4px 8px; font-size: 10px; color: #888; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1a1a2e; flex-shrink: 0; }
+        .slice-label .slice-name { color: #a0a8ff; font-weight: bold; }
+        .slice-label .slice-status-icon { font-size: 12px; }
+        .slice-label .slice-status-icon.pending { color: #444; }
+        .slice-label .slice-status-icon.in_progress { color: #ffa502; animation: blink 1s infinite; }
+        .slice-label .slice-status-icon.completed { color: #2ed573; }
+        .slice-label .slice-status-icon.error { color: #ff4757; }
+
+        @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+        .slice-content { padding: 6px 8px; font-size: 12px; line-height: 1.6; color: #bbb; flex: 1; overflow-y: auto; max-height: 120px; min-height: 40px; word-break: break-all; }
+        .slice-content.empty { color: #444; font-style: italic; }
+        .slice-content.generating { color: #ffa502; font-style: italic; }
+        .slice-char-count { padding: 2px 8px; font-size: 10px; color: #555; text-align: right; border-top: 1px solid #1a1a2e; flex-shrink: 0; }
+        .slice-char-count.warn { color: #ff4757; }
+
+        .legend { display: flex; gap: 20px; margin-top: 16px; padding-top: 16px; border-top: 1px solid #333; flex-wrap: wrap; }
+        .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #888; }
+        .legend-dot { width: 12px; height: 12px; border-radius: 2px; }
+        .legend-dot.pending { background: #1a1a2e; border: 1px solid #333; }
+        .legend-dot.in_progress { background: #2d1f3d; border: 1px solid #ffa502; }
+        .legend-dot.completed { background: #1a2e1a; border: 1px solid #2ed573; }
+        .legend-dot.error { background: #2e1a1a; border: 1px solid #ff4757; }
+
+        .log-panel { background: #0d0d1a; border: 1px solid #333; border-radius: 8px; padding: 16px; margin-top: 20px; max-height: 200px; overflow-y: auto; font-family: 'Consolas', monospace; font-size: 12px; color: #888; }
+        .log-entry { padding: 2px 0; border-bottom: 1px solid #1a1a2e; }
+        .log-entry.error { color: #ff4757; }
+        .log-entry.warning { color: #ffa502; }
+        .log-entry.info { color: #888; }
+        .log-entry.success { color: #2ed573; }
+
+        .ws-connected { color: #2ed573 !important; font-size: 12px; }
+        .ws-disconnected { color: #666 !important; font-size: 12px; }
+
+        .empty-state { text-align: center; padding: 60px 20px; color: #555; }
+        .empty-state .icon { font-size: 48px; margin-bottom: 16px; }
+        .empty-state .text { font-size: 16px; margin-bottom: 8px; }
+        .empty-state .subtext { font-size: 13px; color: #444; }
+    </style>
+</head>
+<body>
+    <nav class="nav">
+        <a href="/">首页</a>
+        <a href="/create">小说创作</a>
+        <a href="/pipeline">管线控制</a>
+        <a href="/matrix" class="active">章节并发矩阵</a>
+        <a href="/world">世界状态</a>
+        <a href="/review">审核裁决</a>
+    </nav>
+
+    <div class="container">
+        <h1>📊 章节并发矩阵视图</h1>
+
+        <div class="stats-row">
+            <div class="stat-card">
+                <div class="num" id="stat-total">0</div>
+                <div class="label">总切片数</div>
+            </div>
+            <div class="stat-card">
+                <div class="num" id="stat-completed">0</div>
+                <div class="label">已完成</div>
+            </div>
+            <div class="stat-card">
+                <div class="num" id="stat-in-progress">0</div>
+                <div class="label">生成中</div>
+            </div>
+            <div class="stat-card">
+                <div class="num" id="stat-errors">0</div>
+                <div class="label">错误</div>
+            </div>
+            <div class="stat-card">
+                <div class="num" id="stat-chapters-done">0</div>
+                <div class="label">已完成章节</div>
+            </div>
+        </div>
+
+        <div class="status-bar">
+            <div class="status-items">
+                <div class="status-item">
+                    <span class="status-label">管线状态:</span>
+                    <span class="status-value idle" id="pipeline-status">空闲</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">当前阶段:</span>
+                    <span class="status-value" id="current-stage">-</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">耗时:</span>
+                    <span class="status-value" id="elapsed-time">-</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">实时:</span>
+                    <span class="status-value ws-disconnected" id="ws-status">○ 未连接</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="stage-indicator">
+            <div class="stage-list" id="stage-list">
+                <div class="stage-item" data-stage="character_generation">1. 角色生成</div>
+                <div class="stage-item" data-stage="main_storyline">2. 故事主线</div>
+                <div class="stage-item" data-stage="full_outline">3. 全书大纲</div>
+                <div class="stage-item" data-stage="chapter_outlines">4. 章节大纲</div>
+                <div class="stage-item" data-stage="chapter_writing">5. 章节写作</div>
+            </div>
+        </div>
+
+        <div class="overall-progress">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+                <span style="color:#a0a8ff;font-size:14px;font-weight:bold">总体进度</span>
+                <span style="color:#2ed573;font-size:14px;font-weight:bold" id="overall-percent">0%</span>
+            </div>
+            <div class="overall-progress-bar">
+                <div class="overall-progress-fill" id="overall-progress-fill" style="width:0%"></div>
+            </div>
+            <div class="overall-progress-text">
+                <span id="progress-detail">0 / 0 切片</span>
+                <span id="eta-text">预计剩余: -</span>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button class="btn primary" onclick="refreshMatrix()">🔄 刷新矩阵</button>
+            <button class="btn success" onclick="toggleAutoRefresh()" id="btn-auto-refresh">⏱ 自动刷新: 关</button>
+            <button class="btn danger" onclick="stopPipeline()" id="btn-stop" style="display:none">⏹ 停止管线</button>
+        </div>
+
+        <div class="matrix-container">
+            <div class="matrix-header">
+                <span>📖 章节切片生成进度</span>
+                <span style="font-size:12px;color:#666" id="matrix-info">每章节 4行 × 5列 = 20切片 | 每切片 ≥ 200字</span>
+            </div>
+            <div id="matrix-content">
+                <div class="empty-state">
+                    <div class="icon">📝</div>
+                    <div class="text">等待管线启动</div>
+                    <div class="subtext">请在小说创作页启动优化管线后，此处将实时显示各章节切片的生成进度和内容</div>
+                </div>
+            </div>
+
+            <div class="legend">
+                <div class="legend-item">
+                    <div class="legend-dot pending"></div>
+                    <span>等待中</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-dot in_progress"></div>
+                    <span>生成中</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-dot completed"></div>
+                    <span>已完成</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-dot error"></div>
+                    <span>错误</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="log-panel" id="log-panel">
+            <div class="log-entry info">等待管线启动...</div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+    <script src="/static/js/global-state.js"></script>
+    <script>
+        let autoRefreshInterval = null;
+        let isAutoRefresh = false;
+        let pipelineStartTime = null;
+        let lastProgressData = null;
+
+        const STAGE_NAMES = {
+            'character_generation': '角色生成',
+            'main_storyline': '故事主线',
+            'full_outline': '全书大纲',
+            'chapter_outlines': '章节大纲',
+            'chapter_writing': '章节写作',
+        };
+
+        const ROW_NAMES = ['开场', '发展', '高潮', '结尾'];
+        const COL_NAMES_5 = ['场景引入', '角色登场', '氛围营造', '背景铺垫', '悬念设置',
+                             '情节推进', '冲突升级', '关系变化', '线索展开', '危机逼近',
+                             '冲突爆发', '关键转折', '生死抉择', '真相揭露', '命运交汇',
+                             '冲突解决', '情感升华', '伏笔收束', '余韵营造', '承前启后'];
+
+        function getSliceName(sliceIdx) {
+            return COL_NAMES_5[sliceIdx] || `切片${sliceIdx + 1}`;
+        }
+
+        function getRowName(sliceIdx) {
+            return ROW_NAMES[Math.floor(sliceIdx / 5)] || '其他';
+        }
+
+        let socket = null;
+        let wsConnected = false;
+        let reconnectAttempts = 0;
+
+        function initWebSocket() {
+            try {
+                const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const wsUrl = `${protocol}//${location.host}`;
+                socket = io(wsUrl, {
+                    transports: ['websocket', 'polling'],
+                    reconnection: true,
+                    reconnectionAttempts: 10,
+                    reconnectionDelay: 1000,
+                    reconnectionDelayMax: 5000,
+                });
+
+                socket.on('connect', function() {
+                    wsConnected = true;
+                    reconnectAttempts = 0;
+                    addLog('WebSocket 已连接', 'success');
+                    updateConnectionStatus(true);
+                    socket.emit('request_progress');
+                });
+
+                socket.on('disconnect', function() {
+                    wsConnected = false;
+                    addLog('WebSocket 断开连接', 'warning');
+                    updateConnectionStatus(false);
+                });
+
+                socket.on('progress_update', function(data) {
+                    lastProgressData = data;
+                    updateMatrix(data);
+                    updateStageIndicator(data);
+                    updateStats(data);
+                    updateOverallProgress(data);
+                    updateElapsedTime(data);
+                });
+
+            } catch(e) {
+                addLog('WebSocket 初始化失败: ' + e.message, 'warning');
+            }
+        }
+
+        function updateConnectionStatus(connected) {
+            const el = document.getElementById('ws-status');
+            if (el) {
+                el.textContent = connected ? '● 已连接' : '○ 未连接';
+                el.className = connected ? 'ws-connected' : 'ws-disconnected';
+            }
+        }
+
+        async function refreshMatrix() {
+            try {
+                const r = await fetch('/api/pipeline/progress');
+                const data = await r.json();
+                lastProgressData = data;
+                updateMatrix(data);
+                updateStageIndicator(data);
+                updateStats(data);
+                updateOverallProgress(data);
+                updateElapsedTime(data);
+            } catch(e) {
+                addLog('刷新矩阵失败: ' + e.message, 'error');
+            }
+        }
+
+        function updateMatrix(data) {
+            const el = document.getElementById('matrix-content');
+            if (!data.chapter_matrix || data.chapter_matrix.length === 0) {
+                if (data.status === 'idle') {
+                    el.innerHTML = '<div class="empty-state"><div class="icon">📝</div><div class="text">等待管线启动</div><div class="subtext">请在小说创作页启动优化管线</div></div>';
+                } else if (data.status === 'running' && data.current_stage !== 'chapter_writing') {
+                    el.innerHTML = '<div class="empty-state"><div class="icon">⏳</div><div class="text">当前阶段: ' + (STAGE_NAMES[data.current_stage] || data.current_stage) + '</div><div class="subtext">章节写作阶段开始后将显示矩阵</div></div>';
+                } else {
+                    el.innerHTML = '<div class="empty-state"><div class="icon">📝</div><div class="text">暂无章节数据</div></div>';
+                }
+                return;
+            }
+
+            const slicesPerChapter = data.chapter_matrix[0].slices.length;
+            const colsPerRow = 5;
+            const rowsPerChapter = Math.ceil(slicesPerChapter / colsPerRow);
+
+            document.getElementById('matrix-info').textContent =
+                `每章节 ${rowsPerChapter}行 × ${colsPerRow}列 = ${slicesPerChapter}切片 | 每切片 ≥ 200字`;
+
+            let html = '';
+
+            data.chapter_matrix.forEach(chapter => {
+                const chStatus = chapter.status || 'pending';
+                const completedCount = chapter.slices.filter(s => s.status === 'completed').length;
+                const totalCount = chapter.slices.length;
+                const percent = totalCount > 0 ? Math.round(completedCount / totalCount * 100) : 0;
+
+                html += `<div class="chapter-block">`;
+                html += `<div class="chapter-header" onclick="toggleChapterBody(this)">`;
+                html += `<div class="chapter-title">第${chapter.chapter_id}章 ${chapter.chapter_title || ''}</div>`;
+                html += `<div class="chapter-progress">`;
+                html += `<span class="chapter-progress-text">${completedCount}/${totalCount} (${percent}%)</span>`;
+                html += `<div class="chapter-progress-bar"><div class="chapter-progress-fill" style="width:${percent}%"></div></div>`;
+                html += `<span class="chapter-status-badge ${chStatus}">${chStatus === 'in_progress' ? '生成中' : chStatus === 'completed' ? '已完成' : '等待'}</span>`;
+                html += `</div></div>`;
+
+                html += `<div class="chapter-body">`;
+
+                for (let row = 0; row < rowsPerChapter; row++) {
+                    const rowName = ROW_NAMES[row] || `阶段${row + 1}`;
+                    html += `<div class="slice-row">`;
+                    html += `<div class="row-label">${rowName}</div>`;
+
+                    for (let col = 0; col < colsPerRow; col++) {
+                        const sliceIdx = row * colsPerRow + col;
+                        if (sliceIdx >= totalCount) {
+                            html += `<div class="slice-box pending" style="visibility:hidden"></div>`;
+                            continue;
+                        }
+
+                        const slice = chapter.slices[sliceIdx];
+                        const status = slice.status || 'pending';
+                        const content = slice.content || '';
+                        const sliceName = getSliceName(sliceIdx);
+                        const charCount = content.length;
+
+                        const statusIcon = status === 'completed' ? '✓' :
+                                          status === 'in_progress' ? '⏳' :
+                                          status === 'error' ? '✗' : '·';
+
+                        const contentClass = !content ? 'empty' :
+                                            status === 'in_progress' ? 'generating' : '';
+                        const contentText = !content ?
+                            (status === 'pending' ? '等待生成...' :
+                             status === 'in_progress' ? '正在生成...' :
+                             status === 'error' ? '生成失败' : '') :
+                            content.length > 200 ? content.substring(0, 200) + '...' : content;
+
+                        const countClass = charCount > 0 && charCount < 200 ? 'warn' : '';
+
+                        html += `<div class="slice-box ${status}">`;
+                        html += `<div class="slice-label">`;
+                        html += `<span class="slice-name">${sliceName}</span>`;
+                        html += `<span class="slice-status-icon ${status}">${statusIcon}</span>`;
+                        html += `</div>`;
+                        html += `<div class="slice-content ${contentClass}">${escapeHtml(contentText)}</div>`;
+                        html += `<div class="slice-char-count ${countClass}">${charCount > 0 ? charCount + '字' : ''}</div>`;
+                        html += `</div>`;
+                    }
+
+                    html += `</div>`;
+                }
+
+                html += `</div></div>`;
+            });
+
+            el.innerHTML = html;
+        }
+
+        function toggleChapterBody(header) {
+            const body = header.nextElementSibling;
+            if (body.style.display === 'none') {
+                body.style.display = '';
+            } else {
+                body.style.display = 'none';
+            }
+        }
+
+        function updateStageIndicator(data) {
+            const stageList = document.getElementById('stage-list');
+            if (!stageList) return;
+            const stages = stageList.querySelectorAll('.stage-item');
+            const currentStage = data.current_stage || '';
+            const stageOrder = ['character_generation', 'main_storyline', 'full_outline', 'chapter_outlines', 'chapter_writing'];
+
+            let currentIdx = stageOrder.indexOf(currentStage);
+
+            stages.forEach((item, idx) => {
+                const stageName = stageOrder[idx];
+                item.className = 'stage-item';
+                if (idx < currentIdx) {
+                    item.className = 'stage-item completed';
+                } else if (idx === currentIdx && data.status === 'running') {
+                    item.className = 'stage-item active';
+                }
+            });
+        }
+
+        function updateStats(data) {
+            let totalSlices = 0, completed = 0, inProgress = 0, errors = 0, chaptersDone = 0;
+
+            if (data.chapter_matrix) {
+                data.chapter_matrix.forEach(ch => {
+                    if (ch.status === 'completed') chaptersDone++;
+                    ch.slices.forEach(s => {
+                        totalSlices++;
+                        if (s.status === 'completed') completed++;
+                        else if (s.status === 'in_progress') inProgress++;
+                        else if (s.status === 'error') errors++;
+                    });
+                });
+            }
+
+            document.getElementById('stat-total').textContent = totalSlices;
+            document.getElementById('stat-completed').textContent = completed;
+            document.getElementById('stat-in-progress').textContent = inProgress;
+            document.getElementById('stat-errors').textContent = errors;
+            document.getElementById('stat-chapters-done').textContent = chaptersDone;
+
+            const statusEl = document.getElementById('pipeline-status');
+            if (data.status === 'running') {
+                statusEl.textContent = '运行中';
+                statusEl.className = 'status-value running';
+            } else if (data.status === 'completed') {
+                statusEl.textContent = '已完成';
+                statusEl.className = 'status-value completed';
+            } else if (data.status === 'failed') {
+                statusEl.textContent = '失败';
+                statusEl.className = 'status-value error';
+            } else {
+                statusEl.textContent = '空闲';
+                statusEl.className = 'status-value idle';
+            }
+
+            document.getElementById('current-stage').textContent = STAGE_NAMES[data.current_stage] || '-';
+        }
+
+        function updateOverallProgress(data) {
+            let total = 0, completed = 0;
+            if (data.chapter_matrix) {
+                data.chapter_matrix.forEach(ch => {
+                    ch.slices.forEach(s => {
+                        total++;
+                        if (s.status === 'completed') completed++;
+                    });
+                });
+            }
+
+            const percent = total > 0 ? Math.round(completed / total * 100) : 0;
+            document.getElementById('overall-percent').textContent = percent + '%';
+            document.getElementById('overall-progress-fill').style.width = percent + '%';
+            document.getElementById('progress-detail').textContent = `${completed} / ${total} 切片`;
+        }
+
+        function updateElapsedTime(data) {
+            if (!pipelineStartTime && data.status === 'running') {
+                pipelineStartTime = Date.now();
+            }
+            if (data.status !== 'running') {
+                pipelineStartTime = null;
+                document.getElementById('elapsed-time').textContent = '-';
+                return;
+            }
+
+            if (pipelineStartTime) {
+                const elapsed = Math.round((Date.now() - pipelineStartTime) / 1000);
+                const min = Math.floor(elapsed / 60);
+                const sec = elapsed % 60;
+                document.getElementById('elapsed-time').textContent = `${min}分${sec}秒`;
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function toggleAutoRefresh() {
+            isAutoRefresh = !isAutoRefresh;
+            const btn = document.getElementById('btn-auto-refresh');
+            btn.textContent = isAutoRefresh ? '⏱ 自动刷新: 开' : '⏱ 自动刷新: 关';
+            btn.className = isAutoRefresh ? 'btn warn' : 'btn success';
+
+            if (isAutoRefresh) {
+                autoRefreshInterval = setInterval(refreshMatrix, 2000);
+            } else {
+                clearInterval(autoRefreshInterval);
+            }
+        }
+
+        async function stopPipeline() {
+            if (confirm('确定要停止管线吗？已生成的内容将被保留。')) {
+                addLog('请求停止管线...', 'warning');
+            }
+        }
+
+        function addLog(message, level) {
+            const panel = document.getElementById('log-panel');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry ' + (level || 'info');
+            const time = new Date().toLocaleTimeString();
+            entry.textContent = `[${time}] ${message}`;
+            panel.insertBefore(entry, panel.firstChild);
+            if (panel.children.length > 100) {
+                panel.removeChild(panel.lastChild);
+            }
+        }
+
+        initWebSocket();
+        refreshMatrix();
+        addLog('矩阵视图已初始化', 'success');
+
+        globalState.connect();
+        globalState.on('state_update', (changes) => {
+            if ('pipeline_status' in changes) {
+                addLog(`管线状态: ${changes.pipeline_status}`, changes.pipeline_status === 'running' ? 'info' : changes.pipeline_status === 'completed' ? 'success' : 'warning');
+            }
+        });
+    </script>
+</body>
+</html>

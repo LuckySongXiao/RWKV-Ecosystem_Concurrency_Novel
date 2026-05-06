@@ -3,101 +3,273 @@
 <head>
     <meta charset="UTF-8">
     <title>角色扮演 - RWKV 小说共创</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Microsoft YaHei', sans-serif; background: #0a0a1a; color: #e0e0e0; }
-        .nav { display: flex; background: #1a1a2e; padding: 12px 24px; gap: 24px; border-bottom: 1px solid #333; }
-        .nav a { color: #7b8cff; text-decoration: none; font-size: 15px; padding: 6px 12px; border-radius: 6px; }
-        .nav a:hover { background: #2a2a4e; }
-        .container { max-width: 900px; margin: 0 auto; padding: 24px; }
-        h1 { font-size: 24px; color: #7b8cff; margin-bottom: 16px; }
-        .card { background: #1a1a2e; border: 1px solid #333; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
-        label { display: block; color: #a0a8ff; margin: 8px 0 4px; font-size: 13px; }
-        input, textarea, select { width: 100%; background: #0d0d1a; border: 1px solid #333; color: #e0e0e0; padding: 8px; border-radius: 6px; font-size: 14px; }
+        body { font-family: 'Microsoft YaHei', sans-serif; background: #0a0a1a; color: #e0e0e0; min-height: 100vh; }
+        .nav { display: flex; background: #1a1a2e; padding: 12px 24px; gap: 8px; border-bottom: 1px solid #333; flex-wrap: wrap; }
+        .nav a { color: #7b8cff; text-decoration: none; font-size: 14px; padding: 8px 16px; border-radius: 6px; transition: all .2s; }
+        .nav a:hover, .nav a.active { background: #2a2a4e; color: #a0a8ff; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 24px; display: grid; grid-template-columns: 300px 1fr; gap: 20px; }
+        h1 { font-size: 24px; color: #7b8cff; margin-bottom: 20px; grid-column: 1 / -1; }
+        h2 { font-size: 18px; color: #a0a8ff; margin: 16px 0 12px; }
+        .card { background: #1a1a2e; border: 1px solid #333; border-radius: 8px; padding: 20px; }
+        .sidebar { display: flex; flex-direction: column; gap: 16px; }
+        .main-content { display: flex; flex-direction: column; }
+        label { display: block; color: #a0a8ff; margin: 12px 0 6px; font-size: 13px; font-weight: bold; }
+        input, textarea, select { width: 100%; background: #0d0d1a; border: 1px solid #333; color: #e0e0e0; padding: 10px; border-radius: 6px; font-size: 14px; font-family: inherit; }
         textarea { height: 80px; resize: vertical; }
-        .btn { background: #7b8cff; color: #fff; border: none; padding: 10px 24px; border-radius: 6px; cursor: pointer; font-size: 14px; margin: 8px 4px 0 0; }
+        input:focus, textarea:focus, select:focus { border-color: #7b8cff; outline: none; }
+        .btn { background: #7b8cff; color: #fff; border: none; padding: 10px 24px; border-radius: 6px; cursor: pointer; font-size: 14px; margin: 8px 4px 0 0; transition: all .2s; }
         .btn:hover { background: #5a6cff; }
         .btn.danger { background: #ff4757; }
-        #chat-area { background: #0d0d1a; border: 1px solid #333; border-radius: 6px; padding: 12px; height: 400px; overflow-y: auto; }
-        .msg { margin: 8px 0; padding: 8px 12px; border-radius: 6px; font-size: 14px; }
-        .msg.user { background: #1e3a5f; text-align: right; }
-        .msg.character { background: #1a2e1a; }
-        .msg .name { font-size: 12px; color: #888; margin-bottom: 4px; }
+        .btn.success { background: #2ed573; }
+        .btn.warn { background: #ffa502; color: #1a1a2e; }
+        #chat-area { background: #0d0d1a; border: 1px solid #333; border-radius: 6px; padding: 16px; height: 500px; overflow-y: auto; flex: 1; }
+        .msg { margin: 12px 0; padding: 12px 16px; border-radius: 8px; font-size: 14px; line-height: 1.6; }
+        .msg.user { background: #1e3a5f; text-align: right; margin-left: 20%; }
+        .msg.character { background: #1a2e1a; margin-right: 20%; }
+        .msg .name { font-size: 12px; color: #888; margin-bottom: 6px; font-weight: bold; }
+        .char-list { max-height: 400px; overflow-y: auto; }
+        .char-item { background: #16213e; border: 1px solid #333; border-radius: 6px; padding: 12px; margin: 8px 0; cursor: pointer; transition: all .2s; }
+        .char-item:hover { border-color: #7b8cff; background: #1a2a4e; }
+        .char-item.selected { border-color: #2ed573; background: #1a3a2a; }
+        .char-item .name { color: #a0a8ff; font-weight: bold; font-size: 14px; }
+        .char-item .info { color: #888; font-size: 12px; margin-top: 4px; }
+        .char-actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+        .empty-state { text-align: center; padding: 40px; color: #666; }
+        .mode-tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+        .mode-tab { padding: 8px 16px; background: #16213e; border: 1px solid #333; border-radius: 6px; cursor: pointer; color: #888; font-size: 13px; }
+        .mode-tab.active { background: #2a2a4e; color: #7b8cff; border-color: #7b8cff; }
     </style>
 </head>
 <body>
-    <nav class="nav">
+    <nav class="nav" style="grid-column: 1 / -1;">
         <a href="/">首页</a>
+        <a href="/create">小说创作</a>
         <a href="/pipeline">管线控制</a>
         <a href="/world">世界状态</a>
         <a href="/roleplay" style="background:#2a2a4e">角色扮演</a>
         <a href="/review">审核裁决</a>
     </nav>
-    <div class="container">
-        <h1>角色扮演</h1>
+    <h1>角色扮演</h1>
+    <div class="sidebar">
         <div class="card">
-            <label>角色ID</label>
-            <input type="text" id="char-id" placeholder="输入角色ID，如 protagonist">
-            <label>场景上下文</label>
-            <textarea id="scene-context" placeholder="描述当前场景..."></textarea>
-            <label>用户输入</label>
-            <textarea id="user-input" placeholder="对角色说话或描述情境..."></textarea>
-            <button class="btn" onclick="sendDialogue()">发送对话</button>
-            <button class="btn" onclick="sendMonologue()">内心独白</button>
-            <button class="btn danger" onclick="resetSession()">重置会话</button>
+            <h2>角色列表</h2>
+            <div class="char-list" id="char-list">
+                <div class="empty-state">加载中...</div>
+            </div>
+        </div>
+        <div class="card" id="char-detail-card" style="display:none;">
+            <h2>角色详情</h2>
+            <div id="char-detail"></div>
         </div>
         <div class="card">
-            <h2 style="color:#a0a8ff;margin-bottom:8px">对话记录</h2>
-            <div id="chat-area"></div>
+            <h2>场景设置</h2>
+            <label>场景上下文</label>
+            <textarea id="scene-context" placeholder="描述当前场景，如：在青云宗大殿中，凌云面对长老的质问..."></textarea>
+            <label>世界状态注入</label>
+            <select id="world-state-inject" style="width:100%; background:#0d0d1a; border:1px solid #333; color:#e0e0e0; padding:8px; border-radius:6px; font-size:13px;">
+                <option value="none">不注入</option>
+                <option value="character">仅角色状态</option>
+                <option value="full">角色+势力+伏笔</option>
+            </select>
+            <div class="char-actions">
+                <button class="btn" onclick="resetSession()">重置会话</button>
+                <button class="btn warn" onclick="queryWorldState()">查询世界状态</button>
+            </div>
+        </div>
+    </div>
+    <div class="main-content">
+        <div class="card" style="flex: 1; display: flex; flex-direction: column;">
+            <div class="mode-tabs">
+                <div class="mode-tab active" onclick="setMode('dialogue')">对话模式</div>
+                <div class="mode-tab" onclick="setMode('monologue')">内心独白</div>
+                <div class="mode-tab" onclick="setMode('multi')">多人对话</div>
+            </div>
+            <div id="chat-area">
+                <div class="empty-state">选择一个角色开始对话...</div>
+            </div>
+            <div style="margin-top: 12px;">
+                <label>用户输入</label>
+                <textarea id="user-input" placeholder="对角色说话或描述情境..." style="height: 60px;"></textarea>
+                <div style="margin-top: 8px;">
+                    <button class="btn success" onclick="sendMessage()">发送</button>
+                    <button class="btn" onclick="sendMonologue()">内心独白</button>
+                </div>
+            </div>
         </div>
     </div>
     <script>
+        let selectedCharId = '';
         let history = '';
+        let currentMode = 'dialogue';
+        let characters = [];
+
+        async function loadCharacters() {
+            try {
+                const r = await fetch('/api/world/characters');
+                characters = await r.json();
+                renderCharList();
+            } catch(e) {
+                document.getElementById('char-list').innerHTML = '<div class="empty-state">无法加载角色列表</div>';
+            }
+        }
+
+        function renderCharList() {
+            const el = document.getElementById('char-list');
+            if (!characters.length) {
+                el.innerHTML = '<div class="empty-state">暂无角色。请先在"小说创作"页面编写设定。</div>';
+                return;
+            }
+            let html = '';
+            characters.forEach(c => {
+                const selected = c.character_id === selectedCharId ? 'selected' : '';
+                html += `<div class="char-item ${selected}" onclick="selectChar('${c.character_id}')">
+                    <div class="name">${c.name}</div>
+                    <div class="info">${c.location || '未知位置'} | ${c.status || '未知状态'}</div>
+                </div>`;
+            });
+            el.innerHTML = html;
+        }
+
+        function selectChar(charId) {
+            selectedCharId = charId;
+            renderCharList();
+            document.getElementById('chat-area').innerHTML = `<div class="empty-state">已选择角色: ${characters.find(c => c.character_id === charId)?.name || charId}</div>`;
+            history = '';
+            showCharDetail(charId);
+        }
+
+        function showCharDetail(charId) {
+            const char = characters.find(c => c.character_id === charId);
+            if (!char) return;
+            const card = document.getElementById('char-detail-card');
+            const detail = document.getElementById('char-detail');
+            card.style.display = 'block';
+
+            let html = `<div style="color:#a0a8ff; font-size:16px; font-weight:bold; margin-bottom:8px;">${char.name}</div>`;
+            html += `<div style="color:#888; font-size:12px; margin-bottom:6px;">ID: ${char.character_id}</div>`;
+
+            if (char.attributes) {
+                html += '<div style="margin-top:8px;">';
+                for (const [key, val] of Object.entries(char.attributes)) {
+                    if (key === '描述') continue;
+                    html += `<div style="display:flex; justify-content:space-between; padding:3px 0; border-bottom:1px solid #2a2a3e;"><span style="color:#888; font-size:12px;">${key}</span><span style="color:#e0e0e0; font-size:12px;">${val}</span></div>`;
+                }
+                html += '</div>';
+            }
+
+            if (char.location) {
+                html += `<div style="margin-top:8px; color:#888; font-size:12px;">位置: <span style="color:#e0e0e0;">${char.location}</span></div>`;
+            }
+            if (char.status) {
+                html += `<div style="color:#888; font-size:12px;">状态: <span style="color:#e0e0e0;">${char.status}</span></div>`;
+            }
+
+            if (char.relationships && char.relationships.length) {
+                html += '<div style="margin-top:8px; color:#888; font-size:12px;">关系:</div>';
+                char.relationships.slice(0, 5).forEach(r => {
+                    html += `<div style="padding:2px 0 2px 8px; font-size:12px; color:#aaa;">${r.type || ''} → ${r.target || ''}</div>`;
+                });
+            }
+
+            detail.innerHTML = html;
+        }
+
+        async function queryWorldState() {
+            if (!selectedCharId) { alert('请先选择一个角色'); return; }
+            try {
+                const r = await fetch('/api/world/entity/' + encodeURIComponent(selectedCharId));
+                const d = await r.json();
+                addMessage('系统 [世界状态]', '```json\n' + JSON.stringify(d, null, 2).substring(0, 500) + '\n```', 'character');
+            } catch(e) {
+                addMessage('系统', '查询失败: ' + e.message, 'user');
+            }
+        }
+
+        function setMode(mode) {
+            currentMode = mode;
+            document.querySelectorAll('.mode-tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+        }
+
         function addMessage(name, text, cls) {
             const el = document.getElementById('chat-area');
+            if (el.querySelector('.empty-state')) el.innerHTML = '';
             el.innerHTML += `<div class="msg ${cls}"><div class="name">${name}</div>${text}</div>`;
             el.scrollTop = el.scrollHeight;
         }
-        async function sendDialogue() {
-            const charId = document.getElementById('char-id').value;
-            const scene = document.getElementById('scene-context').value;
+
+        async function sendMessage() {
+            if (!selectedCharId) { alert('请先选择一个角色'); return; }
             const input = document.getElementById('user-input').value;
-            if (!charId || !input) return;
+            if (!input.trim()) return;
             addMessage('你', input, 'user');
+            const scene = document.getElementById('scene-context').value;
+
             try {
-                const r = await fetch('/api/roleplay/dialogue', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({character_id: charId, scene_context: scene, user_input: input, dialogue_history: history})
-                });
-                const d = await r.json();
-                addMessage(charId, d.response, 'character');
-                history += '\n你: ' + input + '\n' + charId + ': ' + d.response;
+                let r;
+                if (currentMode === 'dialogue') {
+                    r = await fetch('/api/roleplay/dialogue', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({character_id: selectedCharId, scene_context: scene, user_input: input, dialogue_history: history})
+                    });
+                    const d = await r.json();
+                    addMessage(characters.find(c => c.character_id === selectedCharId)?.name || selectedCharId, d.response, 'character');
+                    history += '\n你: ' + input + '\n' + selectedCharId + ': ' + d.response;
+                } else if (currentMode === 'multi') {
+                    r = await fetch('/api/roleplay/multi', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({character_ids: [selectedCharId], scene_context: scene, topic: input, rounds: 3})
+                    });
+                    const d = await r.json();
+                    for (const [charId, response] of Object.entries(d)) {
+                        addMessage(charId, response, 'character');
+                    }
+                }
             } catch(e) { addMessage('系统', '错误: ' + e, 'user'); }
             document.getElementById('user-input').value = '';
         }
+
         async function sendMonologue() {
-            const charId = document.getElementById('char-id').value;
+            if (!selectedCharId) { alert('请先选择一个角色'); return; }
             const scene = document.getElementById('scene-context').value;
-            if (!charId) return;
             try {
                 const r = await fetch('/api/roleplay/monologue', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({character_id: charId, situation: scene || '当前情境'})
+                    body: JSON.stringify({character_id: selectedCharId, situation: scene || '当前情境'})
                 });
                 const d = await r.json();
-                addMessage(charId + ' (内心)', d.monologue, 'character');
+                addMessage(characters.find(c => c.character_id === selectedCharId)?.name + ' (内心)', d.monologue, 'character');
             } catch(e) { addMessage('系统', '错误: ' + e, 'user'); }
         }
+
         async function resetSession() {
-            const charId = document.getElementById('char-id').value;
-            if (!charId) return;
-            await fetch('/api/roleplay/reset/' + charId, {method: 'POST'});
-            document.getElementById('chat-area').innerHTML = '';
+            if (!selectedCharId) return;
+            await fetch('/api/roleplay/reset/' + selectedCharId, {method: 'POST'});
+            document.getElementById('chat-area').innerHTML = '<div class="empty-state">会话已重置</div>';
             history = '';
-            addMessage('系统', '会话已重置', 'user');
         }
+
+        document.getElementById('user-input').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        loadCharacters();
+
+        const rpSocket = io(location.host, { transports: ['websocket'], reconnection: true, reconnectionDelay: 3000 });
+        rpSocket.on('progress_update', (data) => {
+            if (data.status === 'completed') {
+                loadCharacters();
+            }
+        });
     </script>
 </body>
 </html>

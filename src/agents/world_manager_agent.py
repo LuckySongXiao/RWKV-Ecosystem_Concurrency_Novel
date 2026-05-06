@@ -51,8 +51,9 @@ class WorldManagerAgent(BaseAgent):
     def get_world_status(self) -> Dict:
         """获取当前世界状态概览"""
         return {
-            "characters": len(self._world.characters),
-            "factions": len(self._world.factions),
+            "character_count": len(self._world.characters),
+            "faction_count": len(self._world.factions),
+            "chapter_count": len(self._world.entity_store.timeline),
             "foreshadowings": {
                 "planted": len(self._world.query_foreshadowings("planted")),
                 "resolved": len(self._world.query_foreshadowings("resolved")),

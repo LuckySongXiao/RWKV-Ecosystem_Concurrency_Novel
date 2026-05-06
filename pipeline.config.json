@@ -2,8 +2,8 @@
   "api": {
     "base_url": "http://localhost:8000",
     "api_key": "",
-    "model": "rwkv7-g1c-13.3b",
-    "model_path": "rwkv_models/rwkv7-g1c-13.3b-20251231-ctx8192.pth",
+    "model": "rwkv7-g1f-2.9b",
+    "model_path": "rwkv_models/rwkv7-g1f-2.9b-20260420-ctx8192.pth",
     "vocab_path": "rwkv_lightning_libtorch_win/rwkv_vocab_v20230424.txt",
     "port": 8000,
     "password": ""

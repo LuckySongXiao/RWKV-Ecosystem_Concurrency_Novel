@@ -36,6 +36,7 @@ class ToolRegistry:
         self._logger = logger or Logger.get()
         self._pending_approvals: List[Dict] = []
         self._reviewable_results: List[Dict] = []
+        self._unresolved_conflicts: List[Dict] = []
 
     def register(self, tool: Tool):
         self._tools[tool.name] = tool
@@ -140,6 +141,22 @@ class ToolRegistry:
 
     def get_reviewable_results(self) -> List[Dict]:
         return self._reviewable_results
+
+    def get_unresolved_conflicts(self) -> List[Dict]:
+        """获取未解决的冲突列表"""
+        return self._unresolved_conflicts
+
+    def add_unresolved_conflict(self, conflict: Dict):
+        """添加未解决冲突"""
+        self._unresolved_conflicts.append(conflict)
+        self._logger.warning(f"Unresolved conflict added: {conflict.get('description', 'N/A')}")
+
+    def resolve_conflict(self, conflict_id: int, resolution: str):
+        """标记冲突已解决"""
+        if 0 <= conflict_id < len(self._unresolved_conflicts):
+            self._unresolved_conflicts[conflict_id]["status"] = "resolved"
+            self._unresolved_conflicts[conflict_id]["resolution"] = resolution
+            self._logger.info(f"Conflict {conflict_id} resolved: {resolution}")
 
     def revoke_reviewable(self, result_id: int):
         """撤回建议执行级操作"""

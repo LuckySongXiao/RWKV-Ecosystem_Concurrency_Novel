@@ -28,23 +28,21 @@ from .logger import Logger
 # ============================================================
 
 def _build_character_prompt(spec_context: str, genre: str) -> str:
-    """构造主要人物生成 Prompt"""
     return (
-        f"Instruction: 基于以下世界观设定，为这部长篇小说设计5-8个主要角色。\n"
+        f"User: 基于以下世界观设定，为这部长篇小说设计5-8个主要角色。\n"
         f"每个角色需包含：name（姓名）、identity（身份/门派）、personality（性格特点，3-5个）、"
         f"background（百字背景）、initial_power（初始实力/修为）、role_type（主角/重要配角/反派/导师）。\n"
         f"题材类型: {genre}\n"
         f"世界观设定:\n{spec_context}\n"
         f"输出JSON格式: {{\"characters\": [{{\"name\":\"\", \"identity\":\"\", "
         f"\"personality\":[], \"background\":\"\", \"initial_power\":\"\", \"role_type\":\"\"}}]}}\n"
-        f"Response: "
+        f"\nAssistant: "
     )
 
 
 def _build_storyline_prompt(spec_context: str, genre: str) -> str:
-    """构造故事主线生成 Prompt"""
     return (
-        f"Instruction: 基于以下世界观设定，为这部长篇小说设计故事主线。\n"
+        f"User: 基于以下世界观设定，为这部长篇小说设计故事主线。\n"
         f"需包含：main_conflict（核心冲突，50字内）、story_arc（故事弧线：起承转合各阶段概要），"
         f"key_turning_points（3-5个关键转折点）、ending_direction（结局方向）、"
         f"themes（2-3个核心主题词）。\n"
@@ -53,14 +51,13 @@ def _build_storyline_prompt(spec_context: str, genre: str) -> str:
         f"输出JSON格式: {{\"main_conflict\":\"\", \"story_arc\":{{\"rise\":\"\", \"bear\":\"\", "
         f"\"turn\":\"\", \"conclude\":\"\"}}, \"key_turning_points\":[], "
         f"\"ending_direction\":\"\", \"themes\":[]}}\n"
-        f"Response: "
+        f"\nAssistant: "
     )
 
 
 def _build_style_prompt(genre: str, spec_context: str) -> str:
-    """构造写作风格生成 Prompt"""
     return (
-        f"Instruction: 基于以下题材类型和世界观，生成适配的写作风格约束。\n"
+        f"User: 基于以下题材类型和世界观，生成适配的写作风格约束。\n"
         f"需包含：narrative_pov（叙事视角）、tone（文风基调）、"
         f"prose_style（文笔特点，3-5条）、dialogue_style（对话风格）、"
         f"taboos（禁忌，3-5条）、chapter_structure（章节结构建议）。\n"
@@ -69,7 +66,7 @@ def _build_style_prompt(genre: str, spec_context: str) -> str:
         f"输出JSON格式: {{\"narrative_pov\":\"\", \"tone\":\"\", "
         f"\"prose_style\":[], \"dialogue_style\":\"\", "
         f"\"taboos\":[], \"chapter_structure\":\"\"}}\n"
-        f"Response: "
+        f"\nAssistant: "
     )
 
 
@@ -78,8 +75,7 @@ def _build_style_prompt(genre: str, spec_context: str) -> str:
 # ============================================================
 
 def _parse_characters(result: str) -> Tuple[Optional[List[Dict]], str]:
-    """解析人物生成结果"""
-    parsed, status = robust_json_parse(result)
+    parsed, status = robust_json_parse(result, first_only=True)
     if parsed and isinstance(parsed, dict) and "characters" in parsed:
         return parsed["characters"], status
     if parsed and isinstance(parsed, list):
@@ -88,8 +84,7 @@ def _parse_characters(result: str) -> Tuple[Optional[List[Dict]], str]:
 
 
 def _parse_storyline(result: str) -> Tuple[Optional[Dict], str]:
-    """解析故事主线生成结果"""
-    parsed, status = robust_json_parse(result)
+    parsed, status = robust_json_parse(result, first_only=True)
     if parsed and isinstance(parsed, dict):
         return parsed, status
     return None, status

@@ -31,11 +31,11 @@ def convert_pth_to_safetensors(input_path: str, output_path: str):
 
     print(f"Loaded {len(state_dict)} tensors")
 
-    # 转换为 safetensors 格式
-    # safetensors 要求所有张量是 contiguous 的
     converted = {}
     for key, tensor in state_dict.items():
         if isinstance(tensor, torch.Tensor):
+            if tensor.dtype == torch.bfloat16:
+                tensor = tensor.to(torch.float16)
             converted[key] = tensor.contiguous()
         else:
             print(f"  Skipping non-tensor key: {key}")

@@ -3,30 +3,42 @@
 <head>
     <meta charset="UTF-8">
     <title>审核裁决 - RWKV 小说共创</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+    <script src="/static/js/global-state.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Microsoft YaHei', sans-serif; background: #0a0a1a; color: #e0e0e0; }
-        .nav { display: flex; background: #1a1a2e; padding: 12px 24px; gap: 24px; border-bottom: 1px solid #333; }
-        .nav a { color: #7b8cff; text-decoration: none; font-size: 15px; padding: 6px 12px; border-radius: 6px; }
-        .nav a:hover { background: #2a2a4e; }
-        .container { max-width: 900px; margin: 0 auto; padding: 24px; }
-        h1 { font-size: 24px; color: #7b8cff; margin-bottom: 16px; }
-        h2 { font-size: 18px; color: #a0a8ff; margin: 16px 0 8px; }
-        .card { background: #1a1a2e; border: 1px solid #333; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
-        .btn { background: #7b8cff; color: #fff; border: none; padding: 8px 20px; border-radius: 6px; cursor: pointer; font-size: 14px; margin: 4px; }
+        body { font-family: 'Microsoft YaHei', sans-serif; background: #0a0a1a; color: #e0e0e0; min-height: 100vh; }
+        .nav { display: flex; background: #1a1a2e; padding: 12px 24px; gap: 8px; border-bottom: 1px solid #333; flex-wrap: wrap; }
+        .nav a { color: #7b8cff; text-decoration: none; font-size: 14px; padding: 8px 16px; border-radius: 6px; transition: all .2s; }
+        .nav a:hover, .nav a.active { background: #2a2a4e; color: #a0a8ff; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 24px; }
+        h1 { font-size: 24px; color: #7b8cff; margin-bottom: 20px; }
+        h2 { font-size: 18px; color: #a0a8ff; margin: 16px 0 12px; }
+        .card { background: #1a1a2e; border: 1px solid #333; border-radius: 8px; padding: 20px; margin-bottom: 16px; }
+        .btn { background: #7b8cff; color: #fff; border: none; padding: 10px 24px; border-radius: 6px; cursor: pointer; font-size: 14px; margin: 4px; transition: all .2s; }
         .btn:hover { background: #5a6cff; }
         .btn.approve { background: #2ed573; }
         .btn.reject { background: #ff4757; }
         .btn.revoke { background: #ffa502; color: #000; }
-        .item { background: #16213e; border: 1px solid #333; border-radius: 6px; padding: 12px; margin: 8px 0; }
-        .item .title { color: #ffa502; font-weight: bold; margin-bottom: 4px; }
-        .item .desc { color: #ccc; font-size: 13px; }
-        .empty { color: #666; text-align: center; padding: 24px; }
+        .item { background: #16213e; border: 1px solid #333; border-radius: 8px; padding: 16px; margin: 12px 0; }
+        .item .title { color: #ffa502; font-weight: bold; margin-bottom: 8px; font-size: 15px; }
+        .item .desc { color: #ccc; font-size: 13px; line-height: 1.6; }
+        .item .meta { color: #888; font-size: 12px; margin-top: 8px; }
+        .empty { text-align: center; padding: 40px; color: #666; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .stats-bar { display: flex; gap: 16px; margin-bottom: 20px; }
+        .stat-item { background: #16213e; border: 1px solid #333; border-radius: 8px; padding: 16px; flex: 1; text-align: center; }
+        .stat-item .num { font-size: 28px; color: #7b8cff; font-weight: bold; }
+        .stat-item .label { font-size: 13px; color: #888; margin-top: 4px; }
+        .conflict-badge { background: #3a1a1a; color: #ff4757; padding: 4px 12px; border-radius: 12px; font-size: 12px; }
+        .approved-badge { background: #1a3a2a; color: #2ed573; padding: 4px 12px; border-radius: 12px; font-size: 12px; }
+        .pending-badge { background: #3a3a1a; color: #ffa502; padding: 4px 12px; border-radius: 12px; font-size: 12px; }
     </style>
 </head>
 <body>
     <nav class="nav">
         <a href="/">首页</a>
+        <a href="/create">小说创作</a>
         <a href="/pipeline">管线控制</a>
         <a href="/world">世界状态</a>
         <a href="/roleplay">角色扮演</a>
@@ -34,13 +46,41 @@
     </nav>
     <div class="container">
         <h1>审核裁决</h1>
-        <div class="card">
-            <h2>待审批操作 (必确认级)</h2>
-            <div id="pending-list"><div class="empty">加载中...</div></div>
+        <div class="stats-bar">
+            <div class="stat-item">
+                <div class="num" id="pending-count">-</div>
+                <div class="label">待审批</div>
+            </div>
+            <div class="stat-item">
+                <div class="num" id="reviewable-count">-</div>
+                <div class="label">可撤回操作</div>
+            </div>
+            <div class="stat-item">
+                <div class="num" id="conflict-count">-</div>
+                <div class="label">冲突数量</div>
+            </div>
         </div>
-        <div class="card">
-            <h2>可撤回操作 (建议执行级)</h2>
-            <div id="reviewable-list"><div class="empty">加载中...</div></div>
+        <div class="grid">
+            <div>
+                <div class="card">
+                    <h2>待审批操作 (必确认级)</h2>
+                    <div id="pending-list"><div class="empty">加载中...</div></div>
+                </div>
+                <div class="card">
+                    <h2>未解决冲突</h2>
+                    <div id="conflict-list"><div class="empty">加载中...</div></div>
+                </div>
+            </div>
+            <div>
+                <div class="card">
+                    <h2>可撤回操作 (建议执行级)</h2>
+                    <div id="reviewable-list"><div class="empty">加载中...</div></div>
+                </div>
+                <div class="card">
+                    <h2>审核结果</h2>
+                    <div id="review-results-list"><div class="empty">加载中...</div></div>
+                </div>
+            </div>
         </div>
     </div>
     <script>
@@ -49,14 +89,21 @@
             try {
                 const r = await fetch('/api/review/pending');
                 const data = await r.json();
+                document.getElementById('pending-count').textContent = data.length;
                 if (!data.length) { el.innerHTML = '<div class="empty">无待审批操作</div>'; return; }
                 el.innerHTML = '';
                 data.forEach((item, i) => {
                     el.innerHTML += `<div class="item">
-                        <div class="title">工具: ${item.tool} | 时间: ${item.timestamp}</div>
-                        <div class="desc">参数: ${JSON.stringify(item.params)}</div>
-                        <button class="btn approve" onclick="approve(${i}, true)">通过</button>
-                        <button class="btn reject" onclick="approve(${i}, false)">驳回</button>
+                        <div class="title">
+                            <span class="pending-badge">待审批</span>
+                            工具: ${item.tool}
+                        </div>
+                        <div class="meta">时间: ${item.timestamp}</div>
+                        <div class="desc">参数: ${JSON.stringify(item.params, null, 2)}</div>
+                        <div style="margin-top: 12px;">
+                            <button class="btn approve" onclick="approve(${i}, true)">✓ 通过</button>
+                            <button class="btn reject" onclick="approve(${i}, false)">✗ 驳回</button>
+                        </div>
                     </div>`;
                 });
             } catch(e) { el.innerHTML = '<div class="empty">加载失败</div>'; }
@@ -66,14 +113,18 @@
             try {
                 const r = await fetch('/api/review/reviewable');
                 const data = await r.json();
+                document.getElementById('reviewable-count').textContent = data.length;
                 if (!data.length) { el.innerHTML = '<div class="empty">无可撤回操作</div>'; return; }
                 el.innerHTML = '';
                 data.forEach((item, i) => {
-                    const revoked = item.revoked ? ' (已撤回)' : '';
+                    const revoked = item.revoked ? '<span class="approved-badge">已撤回</span>' : '';
                     el.innerHTML += `<div class="item">
-                        <div class="title">工具: ${item.tool} | 时间: ${item.timestamp}${revoked}</div>
+                        <div class="title">
+                            工具: ${item.tool} ${revoked}
+                        </div>
+                        <div class="meta">时间: ${item.timestamp}</div>
                         <div class="desc">结果: ${JSON.stringify(item.result).substring(0, 200)}</div>
-                        ${!item.revoked ? `<button class="btn revoke" onclick="revoke(${i})">撤回</button>` : ''}
+                        ${!item.revoked ? `<div style="margin-top: 12px;"><button class="btn revoke" onclick="revoke(${i})">撤回此操作</button></div>` : ''}
                     </div>`;
                 });
             } catch(e) { el.innerHTML = '<div class="empty">加载失败</div>'; }
@@ -85,14 +136,115 @@
                 body: JSON.stringify({approved: approved})
             });
             loadPending();
+            loadReviewable();
         }
         async function revoke(id) {
             await fetch('/api/review/revoke/' + id, {method: 'POST'});
             loadReviewable();
         }
+        async function loadConflicts() {
+            const el = document.getElementById('conflict-list');
+            try {
+                const r = await fetch('/api/status');
+                const data = await r.json();
+                const conflicts = data.unresolved_conflicts || [];
+                document.getElementById('conflict-count').textContent = conflicts.length;
+                if (!conflicts.length) { el.innerHTML = '<div class="empty">无未解决冲突</div>'; return; }
+                el.innerHTML = '';
+                conflicts.forEach((conflict, i) => {
+                    const typeMap = {
+                        'unique_item': '唯一物品冲突',
+                        'territory': '领地冲突',
+                        'location': '位置冲突',
+                        'economic': '经济冲突',
+                        'character_state': '角色状态冲突',
+                    };
+                    const typeName = typeMap[conflict.conflict_type] || conflict.conflict_type;
+                    el.innerHTML += `<div class="item" style="border-left: 3px solid #ff4757;">
+                        <div class="title">
+                            <span class="conflict-badge">${typeName}</span>
+                            第${conflict.chapter_id || '?'}章
+                        </div>
+                        <div class="desc">${conflict.description || '无描述'}</div>
+                        ${conflict.details ? `<div class="meta">详情: ${JSON.stringify(conflict.details).substring(0, 200)}</div>` : ''}
+                        <div style="margin-top: 12px;">
+                            <button class="btn approve" onclick="resolveConflict(${i}, 'keep_first')">保留前者</button>
+                            <button class="btn" onclick="resolveConflict(${i}, 'keep_second')">保留后者</button>
+                            <button class="btn reject" onclick="resolveConflict(${i}, 'manual')">人工处理</button>
+                        </div>
+                    </div>`;
+                });
+            } catch(e) { el.innerHTML = '<div class="empty">加载失败</div>'; }
+        }
+        async function resolveConflict(index, resolution) {
+            try {
+                const r = await fetch('/api/status');
+                const data = await r.json();
+                const conflicts = data.unresolved_conflicts || [];
+                if (index < conflicts.length) {
+                    await fetch('/api/review/conflict/resolve', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({
+                            conflict: conflicts[index],
+                            resolution: resolution,
+                        }),
+                    });
+                }
+                loadConflicts();
+            } catch(e) {}
+        }
+        async function loadReviewResults() {
+            const el = document.getElementById('review-results-list');
+            try {
+                const r = await fetch('/api/review/results');
+                if (!r.ok) { el.innerHTML = '<div class="empty">暂无审核结果</div>'; return; }
+                const data = await r.json();
+                if (!data || !data.length) { el.innerHTML = '<div class="empty">暂无审核结果</div>'; return; }
+                el.innerHTML = '';
+                data.slice(-10).reverse().forEach(result => {
+                    const passed = result.passed ? '<span class="approved-badge">通过</span>' : '<span class="conflict-badge">未通过</span>';
+                    const score = result.quality_score != null ? ` | 评分: ${result.quality_score.toFixed(1)}` : '';
+                    const rejections = result.rejections ? result.rejections.length : 0;
+                    el.innerHTML += `<div class="item">
+                        <div class="title">${passed} 第${result.chapter_id || '?'}章${score}</div>
+                        <div class="desc">内容长度: ${result.content_length || 0}字 | 驳回数: ${rejections}</div>
+                        ${result.issues && result.issues.length ? `<div class="meta">问题: ${result.issues.map(i => i.description).join('; ').substring(0, 200)}</div>` : ''}
+                    </div>`;
+                });
+            } catch(e) { el.innerHTML = '<div class="empty">加载失败</div>'; }
+        }
         loadPending();
         loadReviewable();
-        setInterval(() => { loadPending(); loadReviewable(); }, 5000);
+        loadConflicts();
+        loadReviewResults();
+        setInterval(() => { loadPending(); loadReviewable(); loadConflicts(); loadReviewResults(); }, 5000);
+
+        const reviewSocket = io(location.host, { transports: ['websocket'], reconnection: true, reconnectionDelay: 3000 });
+        reviewSocket.on('progress_update', (data) => {
+            if (data.status === 'running' && data.current_stage) {
+                const el = document.getElementById('pipeline-indicator');
+                if (el) {
+                    el.textContent = data.current_stage;
+                    el.style.color = '#2ed573';
+                }
+            } else if (data.status === 'completed') {
+                loadPending();
+                loadReviewable();
+                loadConflicts();
+                loadReviewResults();
+            }
+        });
+
+        globalState.connect();
+        globalState.on('state_update', (changes) => {
+            if ('pipeline_status' in changes && changes.pipeline_status === 'completed') {
+                loadPending();
+                loadReviewable();
+                loadConflicts();
+                loadReviewResults();
+            }
+        });
     </script>
 </body>
 </html>

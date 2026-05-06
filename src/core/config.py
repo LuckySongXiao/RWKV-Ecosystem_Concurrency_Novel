@@ -25,10 +25,50 @@ class SamplingParams:
     max_tokens: int = 2048
 
     def validate(self):
-        assert 0 < self.temperature <= 2.0, f"temperature {self.temperature} out of range (0, 2.0]"
-        assert 0 <= self.top_p <= 1.0, f"top_p {self.top_p} out of range [0, 1.0]"
-        assert self.top_k > 0, f"top_k {self.top_k} must be positive"
-        assert self.max_tokens > 0, f"max_tokens {self.max_tokens} must be positive"
+        if not (0 < self.temperature <= 2.0):
+            import warnings
+            warnings.warn(f"temperature {self.temperature} out of range (0, 2.0], clamping to 1.0")
+            self.temperature = 1.0
+        if not (0 <= self.top_p <= 1.0):
+            import warnings
+            warnings.warn(f"top_p {self.top_p} out of range [0, 1.0], clamping to 0.1")
+            self.top_p = 0.1
+        if self.top_k <= 0:
+            import warnings
+            warnings.warn(f"top_k {self.top_k} must be positive, clamping to 50")
+            self.top_k = 50
+        if self.max_tokens <= 0:
+            import warnings
+            warnings.warn(f"max_tokens {self.max_tokens} must be positive, clamping to 2048")
+            self.max_tokens = 2048
+        if self.alpha_presence < 0:
+            self.alpha_presence = 0.0
+        if self.alpha_frequency < 0:
+            self.alpha_frequency = 0.0
+        if not (0 < self.alpha_decay <= 1.0):
+            self.alpha_decay = 0.996
+
+    @classmethod
+    def safe_create(cls, **kwargs) -> 'SamplingParams':
+        """安全创建采样参数，自动修正异常值"""
+        params = cls()
+        for key, value in kwargs.items():
+            if hasattr(params, key):
+                setattr(params, key, value)
+        params.validate()
+        return params
+
+    def to_dict(self) -> Dict[str, float]:
+        """转换为字典格式"""
+        return {
+            "temperature": self.temperature,
+            "top_p": self.top_p,
+            "top_k": self.top_k,
+            "alpha_presence": self.alpha_presence,
+            "alpha_frequency": self.alpha_frequency,
+            "alpha_decay": self.alpha_decay,
+            "max_tokens": self.max_tokens,
+        }
 
 
 @dataclass
@@ -99,7 +139,7 @@ class PipelineConfig:
         """按任务类型获取采样参数"""
         if task_type in self.sampling:
             params = self.sampling[task_type]
-            return SamplingParams(
+            return SamplingParams.safe_create(
                 temperature=params.get("temperature", 1.0),
                 top_p=params.get("top_p", 0.1),
                 top_k=params.get("top_k", 50),

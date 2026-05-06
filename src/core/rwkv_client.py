@@ -16,20 +16,22 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from .config import SamplingParams, APIConfig
 from .logger import Logger
+from .error_handler import ErrorHandler, RetryConfig
 
 
 class RWKVClient:
     """RWKV Lightning API 客户端"""
 
     # 默认停止 token: 0=EOF, 261=<\n>, 24281=常见结束符
-    DEFAULT_STOP_TOKENS = [0, 261, 24281]
+    DEFAULT_STOP_TOKENS = [0]
 
-    def __init__(self, api_config: APIConfig, logger: Optional[Logger] = None):
+    def __init__(self, api_config: APIConfig, logger: Optional[Logger] = None, error_handler: Optional[ErrorHandler] = None):
         self.base_url = api_config.base_url.rstrip('/')
         self.api_key = api_config.api_key
         self.password = api_config.password
         self.model = api_config.model
         self._logger = logger or Logger.get()
+        self._error_handler = error_handler or ErrorHandler(self._logger)
         self._session = requests.Session()
 
     def _headers(self) -> Dict[str, str]:
@@ -266,11 +268,11 @@ class RWKVClient:
         payload: Dict,
         batch: bool = True,
     ) -> Any:
-        """发送POST请求并解析响应"""
+        """发送POST请求并解析响应，带自动重试"""
         url = f"{self.base_url}{endpoint}"
         start = time.time()
 
-        try:
+        def _do_request():
             if payload.get("stream", False):
                 return self._post_stream(url, payload, batch)
 
@@ -293,7 +295,9 @@ class RWKVClient:
 
             return self._extract_text(data, batch)
 
-        except requests.exceptions.RequestException as e:
+        try:
+            return self._error_handler.with_retry(_do_request)
+        except Exception as e:
             elapsed = (time.time() - start) * 1000
             self._logger.error(f"API {endpoint} failed after {elapsed:.0f}ms: {e}")
             raise

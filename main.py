@@ -20,6 +20,7 @@ def main():
     parser.add_argument("--host", default="0.0.0.0", help="Web UI 监听地址")
     parser.add_argument("--port", type=int, default=5000, help="Web UI 端口")
     parser.add_argument("--pipeline-only", action="store_true", help="仅运行管线（不启动Web UI）")
+    parser.add_argument("--no-auto-rwkv", action="store_true", help="不自动启动 RWKV 推理服务")
     args = parser.parse_args()
 
     # 确保工作目录正确
@@ -41,10 +42,11 @@ def main():
         print("=" * 60)
         print(f" 配置: {config_path}")
         print(f" 地址: http://{args.host}:{args.port}")
+        print(f" 自动启动RWKV: {'否' if args.no_auto_rwkv else '是'}")
         print("=" * 60)
 
         from src.web.app import run_server
-        run_server(config_path, args.host, args.port)
+        run_server(config_path, args.host, args.port, auto_start_rwkv=not args.no_auto_rwkv)
 
     else:
         # 仅运行管线（CLI 模式）

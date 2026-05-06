@@ -1,33 +1,92 @@
-"""鲁棒的 JSON 提取与修复工具
-
-处理 RWKV 模型输出中常见的 JSON 格式问题:
-- 键缺少引号: {chapter_id: 10} → {"chapter_id": 10}
-- 尾随逗号: [1, 2, 3,] → [1, 2, 3]
-- 省略号: ...（后续内容）→ 删除
-- 不完整的 JSON: 截断处自动补全括号
-- 混入中文标点: ：→ : ，→ ,
-"""
-
 import json
 import re
 from typing import Any, Optional, Tuple
 
 
-def extract_json_from_text(text: str) -> Optional[str]:
-    """从文本中提取最长的 JSON 块"""
-    # 尝试找 ```json ``` 代码块
+def extract_json_from_text(text: str, first_only: bool = False) -> Optional[str]:
     pattern = r'```json\s*(.*?)\s*```'
     matches = re.findall(pattern, text, re.DOTALL)
     if matches:
+        if first_only:
+            return matches[0]
+        for m in reversed(matches):
+            try:
+                json.loads(m)
+                return m
+            except json.JSONDecodeError:
+                continue
         return matches[-1]
 
-    # 尝试找 { } 或 [ ] 包裹的 JSON
-    # 找最外层的 { }
+    return _extract_outermost_json(text, first_only)
+
+
+def _extract_outermost_json(text: str, first_only: bool = False) -> Optional[str]:
+    best = None
+    best_len = 0
+
+    for opener, closer in [('{', '}'), ('[', ']')]:
+        depth = 0
+        start = -1
+        in_string = False
+        escape_next = False
+
+        for i, ch in enumerate(text):
+            if escape_next:
+                escape_next = False
+                continue
+            if ch == '\\' and in_string:
+                escape_next = True
+                continue
+            if ch == '"' and not escape_next:
+                in_string = not in_string
+                continue
+            if in_string:
+                continue
+
+            if ch == opener:
+                if depth == 0:
+                    start = i
+                depth += 1
+            elif ch == closer:
+                depth -= 1
+                if depth == 0 and start >= 0:
+                    candidate = text[start:i + 1]
+                    if first_only:
+                        return candidate
+                    if len(candidate) > best_len:
+                        best = candidate
+                        best_len = len(candidate)
+                    start = -1
+
+    return best
+
+
+def extract_all_json_blocks(text: str) -> list:
+    results = []
+
+    pattern = r'```json\s*(.*?)\s*```'
+    matches = re.findall(pattern, text, re.DOTALL)
+    for m in matches:
+        results.append(m.strip())
+
     depth = 0
     start = -1
-    best = None
+    in_string = False
+    escape_next = False
 
     for i, ch in enumerate(text):
+        if escape_next:
+            escape_next = False
+            continue
+        if ch == '\\' and in_string:
+            escape_next = True
+            continue
+        if ch == '"' and not escape_next:
+            in_string = not in_string
+            continue
+        if in_string:
+            continue
+
         if ch == '{':
             if depth == 0:
                 start = i
@@ -35,43 +94,18 @@ def extract_json_from_text(text: str) -> Optional[str]:
         elif ch == '}':
             depth -= 1
             if depth == 0 and start >= 0:
-                candidate = text[start:i + 1]
-                if best is None or len(candidate) > len(best):
-                    best = candidate
+                results.append(text[start:i + 1])
                 start = -1
 
-    if best:
-        return best
-
-    # 尝试找 [ ]
-    depth = 0
-    start = -1
-    for i, ch in enumerate(text):
-        if ch == '[':
-            if depth == 0:
-                start = i
-            depth += 1
-        elif ch == ']':
-            depth -= 1
-            if depth == 0 and start >= 0:
-                candidate = text[start:i + 1]
-                if best is None or len(candidate) > len(best):
-                    best = candidate
-                start = -1
-
-    return best
+    return results
 
 
 def sanitize_json_text(text: str) -> str:
-    """清理和修复 JSON 文本中的常见问题"""
-
-    # 1. 删除省略号和中文注释
     text = re.sub(r'…+（[^）]*）', '', text)
     text = re.sub(r'\.\.\.+（[^）]*）', '', text)
     text = re.sub(r'…+', '', text)
     text = re.sub(r'\.\.\.\s*$', '', text, flags=re.MULTILINE)
 
-    # 2. 替换中文标点为英文标点（在 JSON 上下文中）
     text = text.replace('：', ':')
     text = text.replace('，', ',')
     text = text.replace('（', '(')
@@ -83,16 +117,11 @@ def sanitize_json_text(text: str) -> str:
     text = text.replace('\u2018', "'")
     text = text.replace('\u2019', "'")
 
-    # 3. 修复缺少引号的键: {key: value} → {"key": value}
-    # 匹配 { 或 , 后面的裸键
     text = re.sub(
         r'([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:',
         r'\1"\2":',
         text
     )
-
-    # 3b. 修复 "key: value," 模式（键值混在引号内）
-    # 如 "chapter_id: 10," → "chapter_id": 10,
     text = re.sub(
         r'"([a-zA-Z_][a-zA-Z0-9_]*)\s*:\s*([0-9]+)\s*,\s*"',
         r'"\1": \2, "',
@@ -103,28 +132,19 @@ def sanitize_json_text(text: str) -> str:
         r'"\1": "\2", "',
         text
     )
-
-    # 3c. 修复裸键:值模式（逗号后空格+裸键）
-    # 如 ," event: "" → , "event": ""
     text = re.sub(
         r',\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*:\s*',
         r', "\1": ',
         text
     )
 
-    # 4. 修复尾随逗号: ,} → }  ,] → ]
     text = re.sub(r',\s*}', '}', text)
     text = re.sub(r',\s*]', ']', text)
-
-    # 5. 修复单引号为双引号（简单情况）
-    # 注意：这可能会破坏字符串内容中的单引号，所以只在键值对中处理
-    # text = re.sub(r"'([^']*)'", r'"\1"', text)  # 太激进，暂不启用
 
     return text
 
 
 def balance_brackets(text: str) -> str:
-    """补全不匹配的括号"""
     stack = []
     pairs = {'{': '}', '[': ']', '(': ')'}
     openers = set(pairs.keys())
@@ -137,34 +157,168 @@ def balance_brackets(text: str) -> str:
             if stack and pairs.get(stack[-1]) == ch:
                 stack.pop()
 
-    # 补全缺失的闭合括号
     for opener in reversed(stack):
         text += pairs[opener]
 
     return text
 
 
-def robust_json_parse(text: str) -> Tuple[Optional[Any], str]:
-    """鲁棒地解析 JSON 文本
+def repair_truncated_json(text: str) -> Optional[str]:
+    text = text.strip()
 
-    尝试多种策略解析，返回 (parsed_object, status)
-    status: "ok" / "repaired" / "failed"
-    """
-    # 策略1: 直接解析
+    if not text:
+        return None
+
+    if not text.startswith(('{', '[')):
+        idx = -1
+        for i, ch in enumerate(text):
+            if ch in ('{', '['):
+                idx = i
+                break
+        if idx >= 0:
+            text = text[idx:]
+        else:
+            return None
+
+    cleaned = sanitize_json_text(text)
+
+    try:
+        json.loads(cleaned)
+        return cleaned
+    except json.JSONDecodeError:
+        pass
+
+    balanced = balance_brackets(cleaned)
+    try:
+        json.loads(balanced)
+        return balanced
+    except json.JSONDecodeError:
+        pass
+
+    opener = cleaned[0]
+    closer = '}' if opener == '{' else ']'
+
+    for pos in range(len(cleaned) - 1, max(len(cleaned) // 4, 1), -1):
+        if cleaned[pos] == closer:
+            candidate = cleaned[:pos + 1]
+
+            depth = 0
+            in_str = False
+            esc = False
+            for ch in candidate:
+                if esc:
+                    esc = False
+                    continue
+                if ch == '\\' and in_str:
+                    esc = True
+                    continue
+                if ch == '"':
+                    in_str = not in_str
+                    continue
+                if in_str:
+                    continue
+                if ch == '{' or ch == '[':
+                    depth += 1
+                elif ch == '}' or ch == ']':
+                    depth -= 1
+
+            if depth > 0:
+                candidate = balance_brackets(candidate)
+
+            try:
+                json.loads(candidate)
+                return candidate
+            except json.JSONDecodeError:
+                continue
+
+    if opener == '{':
+        last_comma = -1
+        depth = 0
+        in_str = False
+        esc = False
+        for i, ch in enumerate(cleaned):
+            if esc:
+                esc = False
+                continue
+            if ch == '\\' and in_str:
+                esc = True
+                continue
+            if ch == '"':
+                in_str = not in_str
+                continue
+            if in_str:
+                continue
+            if ch == '{' or ch == '[':
+                depth += 1
+            elif ch == '}' or ch == ']':
+                depth -= 1
+            elif ch == ',' and depth == 1:
+                last_comma = i
+
+        if last_comma > 0:
+            candidate = cleaned[:last_comma] + '}'
+            try:
+                json.loads(candidate)
+                return candidate
+            except json.JSONDecodeError:
+                pass
+
+        last_colon = -1
+        depth = 0
+        in_str = False
+        esc = False
+        for i, ch in enumerate(cleaned):
+            if esc:
+                esc = False
+                continue
+            if ch == '\\' and in_str:
+                esc = True
+                continue
+            if ch == '"':
+                in_str = not in_str
+                continue
+            if in_str:
+                continue
+            if ch == '{' or ch == '[':
+                depth += 1
+            elif ch == '}' or ch == ']':
+                depth -= 1
+            elif ch == ':' and depth == 1:
+                last_colon = i
+
+        if last_colon > 0:
+            scan_start = last_colon + 1
+            for pos in range(len(cleaned) - 1, scan_start, -1):
+                ch = cleaned[pos]
+                if ch in ('"', "'", '}', ']', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'e', 'E', 'l', 's', 'n'):
+                    candidate = cleaned[:pos + 1] + '}'
+                    candidate = balance_brackets(candidate)
+                    try:
+                        json.loads(candidate)
+                        return candidate
+                    except json.JSONDecodeError:
+                        continue
+                    break
+
+    return None
+
+
+def robust_json_parse(text: str, first_only: bool = False) -> Tuple[Optional[Any], str]:
+    if not text or not text.strip():
+        return None, "failed"
+
     try:
         return json.loads(text), "ok"
     except json.JSONDecodeError:
         pass
 
-    # 策略2: 提取 JSON 块后解析
-    extracted = extract_json_from_text(text)
+    extracted = extract_json_from_text(text, first_only=first_only)
     if extracted:
         try:
             return json.loads(extracted), "ok"
         except json.JSONDecodeError:
             pass
 
-    # 策略3: 清理修复后解析
     if extracted:
         cleaned = sanitize_json_text(extracted)
     else:
@@ -175,50 +329,65 @@ def robust_json_parse(text: str) -> Tuple[Optional[Any], str]:
     except json.JSONDecodeError:
         pass
 
-    # 策略4: 清理 + 补全括号后解析
     balanced = balance_brackets(cleaned)
     try:
         return json.loads(balanced), "repaired"
     except json.JSONDecodeError:
         pass
 
-    # 策略5: 逐步截断尝试（处理尾部截断）
-    if extracted:
-        work_text = sanitize_json_text(extracted)
-    else:
-        work_text = sanitize_json_text(text)
-
-    # 从最后一个完整的 } 或 ] 开始截断
-    for pos in range(len(work_text) - 1, len(work_text) // 2, -1):
-        if work_text[pos] in ('}', ']'):
-            candidate = balance_brackets(work_text[:pos + 1])
+    if not extracted:
+        outer = _extract_outermost_json(text, first_only=False)
+        if outer and outer != text:
             try:
-                return json.loads(candidate), "repaired"
+                return json.loads(outer), "ok"
             except json.JSONDecodeError:
-                continue
+                pass
+            cleaned_outer = sanitize_json_text(outer)
+            try:
+                return json.loads(cleaned_outer), "repaired"
+            except json.JSONDecodeError:
+                pass
+
+    repaired = repair_truncated_json(text)
+    if repaired:
+        try:
+            return json.loads(repaired), "repaired"
+        except json.JSONDecodeError:
+            pass
+
+    all_blocks = extract_all_json_blocks(text)
+    for block in reversed(all_blocks):
+        try:
+            return json.loads(block), "ok"
+        except json.JSONDecodeError:
+            pass
+        cleaned_block = sanitize_json_text(block)
+        try:
+            return json.loads(cleaned_block), "repaired"
+        except json.JSONDecodeError:
+            pass
+        repaired_block = repair_truncated_json(block)
+        if repaired_block:
+            try:
+                return json.loads(repaired_block), "repaired"
+            except json.JSONDecodeError:
+                pass
 
     return None, "failed"
 
 
 def parse_outline_output(raw_text: str) -> Tuple[Optional[dict], str]:
-    """专门解析大纲输出的 JSON
-
-    Returns:
-        (outline_dict, status)
-    """
     parsed, status = robust_json_parse(raw_text)
 
     if parsed is None:
         return None, "failed"
 
-    # 确保是字典
     if isinstance(parsed, list) and len(parsed) > 0:
         parsed = parsed[0] if isinstance(parsed[0], dict) else {"volumes": parsed}
 
     if not isinstance(parsed, dict):
         return None, "failed"
 
-    # 补全必要字段
     parsed.setdefault("title", "未命名小说")
     parsed.setdefault("genre", "仙侠")
     parsed.setdefault("volumes", [])
@@ -231,21 +400,89 @@ def parse_outline_output(raw_text: str) -> Tuple[Optional[dict], str]:
     return parsed, status
 
 
-def parse_volumes_output(raw_text: str) -> Tuple[list, str]:
-    """解析卷级大纲输出
+def parse_storyline_output(raw_text: str) -> Tuple[Optional[dict], str]:
+    parsed, status = robust_json_parse(raw_text)
 
-    Returns:
-        (volumes_list, status)
-    """
+    if parsed is not None and isinstance(parsed, dict):
+        parsed.setdefault("title", "")
+        parsed.setdefault("description", "")
+        parsed.setdefault("stages", [])
+        parsed.setdefault("core_conflict", "")
+        parsed.setdefault("sub_conflicts", [])
+        parsed.setdefault("ending", "")
+        return parsed, status
+
+    if parsed is not None and isinstance(parsed, list):
+        result = {
+            "title": "自动生成主线",
+            "description": "",
+            "stages": parsed if all(isinstance(x, dict) for x in parsed) else [],
+            "core_conflict": "",
+            "sub_conflicts": [],
+            "ending": "",
+        }
+        return result, "repaired"
+
+    return None, "failed"
+
+
+def parse_volumes_output(raw_text: str) -> Tuple[list, str]:
     parsed, status = robust_json_parse(raw_text)
 
     if parsed is None:
         return [], "failed"
 
     if isinstance(parsed, dict):
-        # 可能是单个卷
         return [parsed], status
     elif isinstance(parsed, list):
         return parsed, status
 
     return [], "failed"
+
+
+def extract_volumes_from_truncated(raw_text: str) -> list:
+    volumes = []
+
+    vol_pattern = r'\{\s*"volume_id"\s*:\s*(\d+)'
+    for m in re.finditer(vol_pattern, raw_text):
+        start = m.start()
+        depth = 0
+        in_str = False
+        esc = False
+        end = -1
+        for i in range(start, len(raw_text)):
+            ch = raw_text[i]
+            if esc:
+                esc = False
+                continue
+            if ch == '\\' and in_str:
+                esc = True
+                continue
+            if ch == '"':
+                in_str = not in_str
+                continue
+            if in_str:
+                continue
+            if ch == '{':
+                depth += 1
+            elif ch == '}':
+                depth -= 1
+                if depth == 0:
+                    end = i
+                    break
+
+        if end > 0:
+            block = raw_text[start:end + 1]
+            try:
+                vol = json.loads(block)
+                volumes.append(vol)
+            except json.JSONDecodeError:
+                repaired = repair_truncated_json(block)
+                if repaired:
+                    try:
+                        vol = json.loads(repaired)
+                        volumes.append(vol)
+                    except json.JSONDecodeError:
+                        pass
+
+    return volumes

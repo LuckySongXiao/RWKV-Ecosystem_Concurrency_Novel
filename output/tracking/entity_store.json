@@ -1,6 +1,60 @@
 {
   "entities": {},
   "relations": [],
-  "foreshadowings": [],
-  "timeline": []
+  "foreshadowings": [
+    {
+      "description": "TESSY和GTRRTByohemile的提及可能预示着未来剧情发展或冲突。",
+      "reasoning": "这些名称在章节正文中首次出现，通常用于铺垫后续故事线索或事件。例如，TESSY可能成为关键角色，而GTRRTByohemile可能涉及隐藏任务或秘密组织。",
+      "confidence_level": "medium",
+      "evidence_from_text": "输入文本直接包含这些名称，表明它们是新引入的元素。"
+    },
+    {
+      "description": "灵镜表面的旧题粗棱外容洒家记诗染上官宣误间注质文上间树四干可能预示着未来的冲突或秘密。",
+      "reasoning": "这些字迹似乎隐藏了重要信息，可能与角色命运相关。"
+    },
+    {
+      "description": "未来可能涉及更多随机事件或挑战，影响角色和阵营。",
+      "reasoning": "基于输入中'刻画了...形势'的上下文推断出潜在伏笔。"
+    },
+    {
+      "description": "未来可能发生更多袭击事件。",
+      "textual_evidence": "文本中'有身被袭推吻完读泥了肝闸浪伦婿探一度搭帅含庶碧各提退干求羲妙丈褪但后淹耳师标崇嗓精透黑衔活抛弃那个银趋决怼涩视哗积趾景迷七不句年隆坡翘导诱只逮壹耳咳兔可吱谅完它享瓷窗妄烫颈吃莫囊淤尽露驰惨额返静付趋渡废尾嫌收井猴而义义暖畸赚嫌死衰躺官纯谱侯凄颐辽裁募隙遵申辐臣喳浸围刃缘拖敦和决备颊杖翔腋昆败屑数招吩漾变颊瘪田提悔泱萌襟谢焉宙蹦壁饼唔撞驰幸桐菩佰持瞧柒迪颍杀较镍韬孽比竞除七腰牺达映被探诡徙谭晶避拼宙踪贸径井台烁奄保挣脸恢孟维平录'中的重复袭击描述，预示未来可能有更多类似事件。"
+    },
+    {
+      "description": "主角可能面临长期困境或挑战。",
+      "textual_evidence": "文本结尾部分'被探诡徙谭晶避拼宙踪贸径井台烁奄保挣脸恢孟维平录'暗示主角需要应对持续的危险或谜团。"
+    }
+  ],
+  "timeline": [
+    {
+      "chapter_id": 2,
+      "event": "None: None 变更为 None",
+      "timestamp": "2026-04-27T15:52:35.415105"
+    },
+    {
+      "chapter_id": 2,
+      "event": "None: None 变更为 None",
+      "timestamp": "2026-04-27T15:52:35.415111"
+    },
+    {
+      "chapter_id": 3,
+      "event": "None: None 变更为 None",
+      "timestamp": "2026-04-27T15:56:48.137245"
+    },
+    {
+      "chapter_id": 3,
+      "event": "None: None 变更为 None",
+      "timestamp": "2026-04-27T15:56:48.137250"
+    },
+    {
+      "chapter_id": 1,
+      "event": "None: None 变更为 None",
+      "timestamp": "2026-04-27T15:59:50.497410"
+    },
+    {
+      "chapter_id": 2,
+      "event": "None: None 变更为 None",
+      "timestamp": "2026-04-27T15:59:50.498752"
+    }
+  ]
 }

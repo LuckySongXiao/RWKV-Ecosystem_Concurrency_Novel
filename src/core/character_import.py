@@ -170,7 +170,7 @@ def _build_single_character_prompt(
     """构造单个角色补全 Prompt"""
     gender_hint = f"，性别{gender}" if gender else ""
     return (
-        f"Instruction: 基于以下世界观设定，为角色「{name}」{gender_hint}补全详细设定。\n"
+        f"User: 基于以下世界观设定，为角色「{name}」{gender_hint}补全详细设定。\n"
         "需补全：identity（身份/门派）、personality（性格特点，3-5个关键词）、"
         "background（百字背景故事）、initial_power（初始实力/修为）、"
         "role_type（主角/重要配角/反派/导师/路人）。\n"
@@ -178,17 +178,16 @@ def _build_single_character_prompt(
         f"世界观:\n{spec_context[:1500]}\n"
         '输出JSON: {"identity":"", "personality":[], "background":"", '
         '"initial_power":"", "role_type":""}\n'
-        "Response: "
+        "\nAssistant: "
     )
 
 
 def _build_batch_character_prompt(
     characters: List[Dict], genre: str, spec_context: str
 ) -> str:
-    """构造批量角色补全 Prompt（用于 /big_batch/completions 并发）"""
     names = ", ".join(f"「{c['name']}」({c.get('gender', '?')})" for c in characters)
     return (
-        "Instruction: 基于以下世界观设定，为以下角色补全详细设定。\n"
+        "User: 基于以下世界观设定，为以下角色补全详细设定。\n"
         f"角色列表: {names}\n"
         "每个角色需补全：identity, personality(3-5个), background(百字), "
         "initial_power, role_type(主角/重要配角/反派/导师)。\n"
@@ -196,7 +195,7 @@ def _build_batch_character_prompt(
         f"世界观:\n{spec_context[:1500]}\n"
         '输出JSON: {"characters": [{"name":"", "identity":"", '
         '"personality":[], "background":"", "initial_power":"", "role_type":""}]}\n'
-        "Response: "
+        "\nAssistant: "
     )
 
 
@@ -220,12 +219,13 @@ class CharacterFiller:
         sampling = SamplingParams(temperature=1.0, top_p=0.1, max_tokens=1024)
 
         try:
-            result = self._client.openai_chat_completions(
-                messages=[{"role": "user", "content": prompt}],
+            results = self._client.big_batch_completions(
+                contents=[prompt],
                 sampling=sampling,
                 stream=False,
             )
-            parsed, status = robust_json_parse(result)
+            result = results[0] if results else ""
+            parsed, status = robust_json_parse(result, first_only=True)
             if parsed and isinstance(parsed, dict):
                 parsed["name"] = name
                 parsed["gender"] = gender

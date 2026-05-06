@@ -3,72 +3,119 @@
 <head>
     <meta charset="UTF-8">
     <title>小说创作 - RWKV 小说共创</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+    <script src="/static/js/global-state.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Microsoft YaHei', sans-serif; background: #0a0a1a; color: #e0e0e0; }
-        .nav { display: flex; background: #1a1a2e; padding: 12px 24px; gap: 24px; border-bottom: 1px solid #333; }
-        .nav a { color: #7b8cff; text-decoration: none; font-size: 15px; padding: 6px 12px; border-radius: 6px; }
-        .nav a:hover { background: #2a2a4e; }
-        .container { max-width: 900px; margin: 0 auto; padding: 24px; }
-        h1 { font-size: 24px; color: #7b8cff; margin-bottom: 16px; }
-        .card { background: #1a1a2e; border: 1px solid #333; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
-        .btn { background: #7b8cff; color: #fff; border: none; padding: 8px 18px; border-radius: 6px; cursor: pointer; font-size: 13px; margin: 2px; }
+        body { font-family: 'Microsoft YaHei', sans-serif; background: #0a0a1a; color: #e0e0e0; min-height: 100vh; }
+        .nav { display: flex; background: #1a1a2e; padding: 12px 24px; gap: 8px; border-bottom: 1px solid #333; flex-wrap: wrap; }
+        .nav a { color: #7b8cff; text-decoration: none; font-size: 14px; padding: 8px 16px; border-radius: 6px; transition: all .2s; }
+        .nav a:hover, .nav a.active { background: #2a2a4e; color: #a0a8ff; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 24px; }
+        h1 { font-size: 24px; color: #7b8cff; margin-bottom: 20px; }
+        h2 { font-size: 18px; color: #a0a8ff; margin: 16px 0 12px; }
+        h3 { font-size: 15px; color: #7b8cff; margin: 12px 0 8px; }
+        .card { background: #1a1a2e; border: 1px solid #333; border-radius: 8px; padding: 20px; margin-bottom: 16px; }
+        .btn { background: #7b8cff; color: #fff; border: none; padding: 10px 24px; border-radius: 6px; cursor: pointer; font-size: 14px; margin: 4px; transition: all .2s; }
         .btn:hover { background: #5a6cff; }
-        .btn.sm { padding: 4px 12px; font-size: 12px; }
+        .btn.sm { padding: 6px 14px; font-size: 12px; }
         .btn.success { background: #2ed573; }
         .btn.warn { background: #ffa502; color: #1a1a2e; }
         .btn.danger { background: #ff4757; }
-
-        /* 逐条设定字段 */
-        .field-group { margin-bottom: 16px; border: 1px solid #2a2a3e; border-radius: 8px; padding: 12px 16px; background: #111122; }
+        .field-group { margin-bottom: 16px; border: 1px solid #2a2a3e; border-radius: 8px; padding: 16px; background: #111122; }
         .field-group.filled { border-color: #2ed573; }
         .field-group.empty { border-color: #ff4757; border-style: dashed; }
-        .field-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+        .field-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
         .field-label { color: #a0a8ff; font-size: 14px; font-weight: bold; }
-        .field-status { font-size: 11px; padding: 2px 8px; border-radius: 10px; }
+        .field-status { font-size: 11px; padding: 3px 10px; border-radius: 12px; }
         .field-status.filled { background: #1a3a2a; color: #2ed573; }
         .field-status.empty { background: #3a1a1a; color: #ff4757; }
-        .field-actions { display: flex; gap: 4px; align-items: center; }
-        .field-input { width: 100%; background: #0a0a15; border: 1px solid #333; color: #e0e0e0; padding: 10px; border-radius: 6px; font-size: 13px; font-family: 'Consolas', 'Microsoft YaHei', monospace; line-height: 1.5; resize: vertical; }
+        .field-actions { display: flex; gap: 6px; align-items: center; }
+        .field-input { width: 100%; background: #0a0a15; border: 1px solid #333; color: #e0e0e0; padding: 12px; border-radius: 6px; font-size: 14px; font-family: 'Consolas', 'Microsoft YaHei', monospace; line-height: 1.6; resize: vertical; }
         .field-input:focus { border-color: #7b8cff; outline: none; }
-        .field-input.single { resize: none; height: 36px; }
-        .field-hint { color: #555; font-size: 11px; margin-top: 4px; }
-
-        /* 题材选择 */
-        .genre-bar { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; align-items: center; }
-        .genre-bar label { color: #a0a8ff; font-size: 13px; font-weight: bold; margin-right: 4px; }
-        .genre-chip { padding: 4px 12px; background: #2a2a4e; border: 1px solid #444; border-radius: 12px; cursor: pointer; font-size: 12px; color: #aaa; transition: all 0.2s; }
+        .field-input.single { resize: none; height: 40px; }
+        .field-hint { color: #666; font-size: 12px; margin-top: 6px; }
+        .genre-bar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; align-items: center; }
+        .genre-bar label { color: #a0a8ff; font-size: 14px; font-weight: bold; margin-right: 8px; }
+        .genre-chip { padding: 6px 16px; background: #2a2a4e; border: 1px solid #444; border-radius: 16px; cursor: pointer; font-size: 13px; color: #aaa; transition: all 0.2s; }
         .genre-chip:hover { border-color: #7b8cff; color: #7b8cff; }
         .genre-chip.active { background: #7b8cff; color: #fff; border-color: #7b8cff; }
-
-        /* 状态栏 */
-        .status-bar { background: #16213e; padding: 10px 16px; border-radius: 6px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; }
-        .status-bar .state { font-size: 14px; }
+        .genre-category { color: #888; font-size: 12px; margin-right: 4px; margin-left: 12px; }
+        .outline-container { background: #0d0d1a; border: 1px solid #333; border-radius: 8px; padding: 20px; max-height: 700px; overflow-y: auto; }
+        .outline-header { background: linear-gradient(135deg, #1a1a3e 0%, #2a2a5e 100%); border: 1px solid #7b8cff; border-radius: 8px; padding: 20px; margin-bottom: 20px; }
+        .outline-title { font-size: 24px; color: #7b8cff; font-weight: bold; margin-bottom: 8px; }
+        .outline-meta { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; }
+        .outline-meta-item { background: #1a1a2e; padding: 6px 12px; border-radius: 4px; font-size: 13px; }
+        .outline-meta-label { color: #888; }
+        .outline-meta-value { color: #e0e0e0; margin-left: 4px; }
+        .volume-card { background: #1a1a2e; border: 1px solid #333; border-radius: 8px; margin-bottom: 16px; overflow: hidden; }
+        .volume-header { background: linear-gradient(90deg, #16213e 0%, #1a1a3e 100%); padding: 16px 20px; cursor: pointer; transition: all 0.2s; border-left: 4px solid #7b8cff; }
+        .volume-header:hover { background: linear-gradient(90deg, #1e2a4e 0%, #2a2a5e 100%); }
+        .volume-title { font-size: 18px; color: #7b8cff; font-weight: bold; margin-bottom: 4px; }
+        .volume-theme { color: #aaa; font-size: 13px; line-height: 1.5; }
+        .volume-info { display: flex; gap: 12px; margin-top: 8px; }
+        .volume-info-item { background: #0d0d1a; padding: 4px 10px; border-radius: 4px; font-size: 12px; color: #888; }
+        .volume-content { padding: 20px; display: none; }
+        .volume-content.expanded { display: block; }
+        .chapter-list { margin-top: 12px; }
+        .chapter-item { background: #0d0d1a; border: 1px solid #2a2a3e; border-radius: 6px; padding: 12px 16px; margin-bottom: 8px; }
+        .chapter-title { font-size: 15px; color: #a0a8ff; font-weight: bold; margin-bottom: 6px; }
+        .chapter-summary { color: #aaa; font-size: 13px; line-height: 1.6; }
+        .event-tag { display: inline-block; background: #2a2a4e; color: #7b8cff; padding: 4px 10px; border-radius: 4px; font-size: 12px; margin: 4px 4px 4px 0; }
+        .conflict-card { background: linear-gradient(135deg, #2a1a1a 0%, #3a2a2a 100%); border: 1px solid #ff4757; border-radius: 8px; padding: 16px; margin-top: 20px; }
+        .conflict-title { font-size: 16px; color: #ff4757; font-weight: bold; margin-bottom: 8px; }
+        .conflict-text { color: #e0e0e0; font-size: 14px; line-height: 1.6; }
+        .ending-card { background: linear-gradient(135deg, #1a2a1a 0%, #2a3a2a 100%); border: 1px solid #2ed573; border-radius: 8px; padding: 16px; margin-top: 20px; }
+        .ending-title { font-size: 16px; color: #2ed573; font-weight: bold; margin-bottom: 8px; }
+        .ending-text { color: #e0e0e0; font-size: 14px; line-height: 1.6; }
+        .expand-icon { display: inline-block; transition: transform 0.2s; margin-right: 8px; }
+        .expand-icon.rotated { transform: rotate(90deg); }
+        .status-bar { background: #16213e; padding: 14px 20px; border-radius: 8px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
+        .status-bar .state { font-size: 15px; }
         .status-bar .state.running { color: #2ed573; }
         .status-bar .state.paused { color: #ffa502; }
-
-        /* Tab */
-        .tabs { display: flex; gap: 8px; margin-bottom: 12px; }
-        .tab { padding: 8px 16px; background: #1a1a2e; border: 1px solid #333; border-radius: 6px; cursor: pointer; color: #888; }
+        .model-modal-overlay { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:1000; justify-content:center; align-items:center; }
+        .model-modal-overlay.active { display:flex; }
+        .model-modal { background:#1a1a2e; border:1px solid #7b8cff; border-radius:12px; padding:28px; max-width:700px; width:90%; max-height:80vh; overflow-y:auto; }
+        .model-modal h2 { color:#7b8cff; font-size:20px; margin:0 0 20px 0; }
+        .model-item { background:#16213e; border:1px solid #333; border-radius:8px; padding:16px; margin-bottom:12px; cursor:pointer; transition:all .2s; display:grid; grid-template-columns:1fr auto; gap:12px; align-items:center; }
+        .model-item:hover { border-color:#7b8cff; background:#1e2a4e; }
+        .model-item.selected { border-color:#2ed573; background:#1a2a1a; }
+        .model-item .model-name { color:#e0e0e0; font-size:14px; font-weight:bold; word-break:break-all; }
+        .model-item .model-info { color:#888; font-size:12px; margin-top:4px; display:flex; gap:12px; flex-wrap:wrap; }
+        .model-item .model-info span { background:#0d0d1a; padding:2px 8px; border-radius:4px; }
+        .model-item .model-badge { padding:4px 12px; border-radius:12px; font-size:12px; font-weight:bold; }
+        .model-badge.recommended { background:#1a3a2a; color:#2ed573; }
+        .model-badge.st { background:#2a2a4e; color:#7b8cff; }
+        .model-badge.pth { background:#3a2a1a; color:#ffa502; }
+        .model-item .model-size { color:#a0a8ff; font-size:13px; white-space:nowrap; }
+        .model-service-status { display:flex; align-items:center; gap:8px; margin-bottom:16px; padding:12px; background:#0d0d1a; border-radius:8px; }
+        .model-service-status .dot { width:10px; height:10px; border-radius:50%; }
+        .model-service-status .dot.running { background:#2ed573; box-shadow:0 0 8px #2ed573; }
+        .model-service-status .dot.stopped { background:#ff4757; }
+        .model-service-status .dot.starting { background:#ffa502; animation:pulse 1s infinite; }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+        .model-modal-actions { display:flex; gap:8px; margin-top:20px; justify-content:flex-end; }
+        .tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+        .tab { padding: 10px 20px; background: #1a1a2e; border: 1px solid #333; border-radius: 6px; cursor: pointer; color: #888; font-size: 14px; transition: all .2s; }
         .tab.active { background: #2a2a4e; color: #7b8cff; border-color: #7b8cff; }
-
-        /* 大纲查看 */
-        .outline-view { background: #0d0d1a; border: 1px solid #333; border-radius: 6px; padding: 12px; max-height: 400px; overflow-y: auto; font-size: 13px; white-space: pre-wrap; }
-
-        /* 全局操作栏 */
+        .outline-view { background: #0d0d1a; border: 1px solid #333; border-radius: 6px; padding: 16px; max-height: 500px; overflow-y: auto; font-size: 14px; white-space: pre-wrap; line-height: 1.6; }
         .global-actions { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
-
-        /* 角色导入 */
-        .char-import-area { margin-top: 8px; }
-        .char-import-input { width: 100%; background: #0a0a15; border: 1px solid #333; color: #e0e0e0; padding: 8px; border-radius: 6px; font-size: 12px; resize: vertical; min-height: 60px; }
+        .char-import-area { margin-top: 12px; }
+        .char-import-input { width: 100%; background: #0a0a15; border: 1px solid #333; color: #e0e0e0; padding: 10px; border-radius: 6px; font-size: 13px; resize: vertical; min-height: 80px; }
         .char-import-input:focus { border-color: #7b8cff; outline: none; }
-        .char-table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 12px; }
-        .char-table th { background: #1a1a2e; color: #a0a8ff; padding: 6px 8px; text-align: left; border-bottom: 1px solid #333; }
-        .char-table td { padding: 5px 8px; border-bottom: 1px solid #222; vertical-align: top; }
+        .char-table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 13px; }
+        .char-table th { background: #1a1a2e; color: #a0a8ff; padding: 8px 10px; text-align: left; border-bottom: 1px solid #333; }
+        .char-table td { padding: 8px 10px; border-bottom: 1px solid #222; vertical-align: top; }
         .char-table tr:hover td { background: #111122; }
         .char-table .incomplete { color: #ff4757; }
         .char-table .complete { color: #2ed573; }
-        .char-detail { color: #888; font-size: 11px; }
+        .char-detail { color: #888; font-size: 12px; }
+        .spec-section { background: #16213e; border: 1px solid #333; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+        .spec-section-title { color: #7b8cff; font-size: 15px; font-weight: bold; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #333; }
+        .empty-state { text-align: center; padding: 40px; color: #666; }
+        .progress-bar { height: 4px; background: #333; border-radius: 2px; margin-top: 8px; }
+        .progress-fill { height: 100%; background: #2ed573; border-radius: 2px; transition: width .3s; }
     </style>
 </head>
 <body>
@@ -85,6 +132,14 @@
 
         <div class="status-bar">
             <span class="state" id="pipeline-state">管线状态: 未知</span>
+            <span id="pipeline-progress-text" style="color:#888; font-size:12px; margin-left:12px;"></span>
+            <div class="progress-bar" style="flex:1; margin:0 16px; max-width:300px;">
+                <div class="progress-fill" id="pipeline-progress-bar" style="width:0%"></div>
+            </div>
+            <span id="model-status-btn" style="cursor:pointer; padding:4px 12px; border-radius:6px; background:#2a2a4e; font-size:13px; display:flex; align-items:center; gap:6px; margin-right:8px;" onclick="openModelModal()">
+                <span id="model-dot" style="width:8px;height:8px;border-radius:50%;background:#ff4757;"></span>
+                <span id="model-status-text">未选择模型</span>
+            </span>
             <span>
                 <button class="btn success" onclick="startPipeline()">启动创作管线</button>
                 <button class="btn" onclick="resumePipeline()">断点恢复</button>
@@ -93,6 +148,8 @@
 
         <div class="tabs">
             <div class="tab active" onclick="switchTab('fields')">设定编辑</div>
+            <div class="tab" onclick="switchTab('optimized')">优化版管线</div>
+            <div class="tab" onclick="switchTab('auto')">全自动管线</div>
             <div class="tab" onclick="switchTab('style')">写作风格</div>
             <div class="tab" onclick="switchTab('outline')">生成大纲</div>
         </div>
@@ -109,6 +166,24 @@
                 <span class="genre-chip" data-genre="历史" onclick="selectGenre(this)">历史</span>
                 <span class="genre-chip" data-genre="悬疑" onclick="selectGenre(this)">悬疑</span>
                 <span class="genre-chip" data-genre="奇幻" onclick="selectGenre(this)">奇幻</span>
+                
+                <span class="genre-category">流派:</span>
+                <span class="genre-chip" data-genre="无限流" onclick="selectGenre(this)">无限流</span>
+                <span class="genre-chip" data-genre="系统流" onclick="selectGenre(this)">系统流</span>
+                <span class="genre-chip" data-genre="穿越" onclick="selectGenre(this)">穿越</span>
+                <span class="genre-chip" data-genre="重生" onclick="selectGenre(this)">重生</span>
+                <span class="genre-chip" data-genre="末世" onclick="selectGenre(this)">末世</span>
+                <span class="genre-chip" data-genre="游戏" onclick="selectGenre(this)">游戏</span>
+                <span class="genre-chip" data-genre="灵异" onclick="selectGenre(this)">灵异</span>
+                <span class="genre-chip" data-genre="洪荒" onclick="selectGenre(this)">洪荒</span>
+                
+                <span class="genre-category">风格:</span>
+                <span class="genre-chip" data-genre="热血" onclick="selectGenre(this)">热血</span>
+                <span class="genre-chip" data-genre="搞笑" onclick="selectGenre(this)">搞笑</span>
+                <span class="genre-chip" data-genre="暗黑" onclick="selectGenre(this)">暗黑</span>
+                <span class="genre-chip" data-genre="言情" onclick="selectGenre(this)">言情</span>
+                <span class="genre-chip" data-genre="种田" onclick="selectGenre(this)">种田</span>
+                <span class="genre-chip" data-genre="群像" onclick="selectGenre(this)">群像</span>
             </div>
 
             <div class="global-actions">
@@ -122,48 +197,176 @@
 
         <!-- 写作风格 -->
         <div id="tab-style" class="card" style="display:none">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-                <span style="color:#a0a8ff;font-size:15px;font-weight:bold">写作风格约束 (style-guide.md)</span>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+                <span style="color:#a0a8ff;font-size:16px;font-weight:bold">写作风格约束 (style-guide.md)</span>
                 <button class="btn sm warn" onclick="autoFillStyle()">AI补全风格</button>
             </div>
-            <textarea id="style-editor" rows="12" placeholder="请在此编写写作风格约束..."></textarea>
-            <div style="margin-top:8px">
+            <textarea id="style-editor" rows="14" placeholder="请在此编写写作风格约束..." style="width:100%;background:#0a0a15;border:1px solid #333;color:#e0e0e0;padding:12px;border-radius:6px;font-size:14px;font-family:inherit;line-height:1.6;resize:vertical"></textarea>
+            <div style="margin-top:12px">
                 <button class="btn success" onclick="saveStyle()">保存风格</button>
-                <span id="style-status" style="color:#666;font-size:12px;margin-left:8px"></span>
+                <span id="style-status" style="color:#666;font-size:13px;margin-left:12px"></span>
+            </div>
+        </div>
+
+        <!-- 优化版管线 -->
+        <div id="tab-optimized" class="card" style="display:none">
+            <div style="color:#a0a8ff;font-size:16px;font-weight:bold;margin-bottom:16px">⚡ 优化版创作管线（支持章节切片和矩阵视图）</div>
+            <div style="background:#16213e;border:1px solid #333;border-radius:8px;padding:16px;margin-bottom:16px">
+                <div style="color:#888;font-size:13px;margin-bottom:12px">
+                    优化版管线特色：角色信息表并行填表 → 故事主线 → 全书大纲 → 章节大纲 → 章节切片并行写作 → 实时矩阵监测
+                </div>
+                
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px;margin-bottom:16px">
+                    <div>
+                        <label style="color:#a0a8ff;font-size:13px;display:block;margin-bottom:4px">角色总数</label>
+                        <input type="number" id="opt-character-count" value="6" min="3" max="50" style="width:100%;background:#0a0a15;border:1px solid #333;color:#e0e0e0;padding:8px;border-radius:4px;font-size:13px">
+                    </div>
+                    <div>
+                        <label style="color:#a0a8ff;font-size:13px;display:block;margin-bottom:4px">主角名称（逗号分隔，可选）</label>
+                        <input type="text" id="opt-protagonists" placeholder="例如：林孤云" style="width:100%;background:#0a0a15;border:1px solid #333;color:#e0e0e0;padding:8px;border-radius:4px;font-size:13px">
+                    </div>
+                    <div>
+                        <label style="color:#a0a8ff;font-size:13px;display:block;margin-bottom:4px">反派名称（可选）</label>
+                        <input type="text" id="opt-antagonists" placeholder="例如：墨渊" style="width:100%;background:#0a0a15;border:1px solid #333;color:#e0e0e0;padding:8px;border-radius:4px;font-size:13px">
+                    </div>
+                    <div>
+                        <label style="color:#a0a8ff;font-size:13px;display:block;margin-bottom:4px">卷数</label>
+                        <input type="number" id="opt-volumes" value="3" min="1" max="20" style="width:100%;background:#0a0a15;border:1px solid #333;color:#e0e0e0;padding:8px;border-radius:4px;font-size:13px">
+                    </div>
+                    <div>
+                        <label style="color:#a0a8ff;font-size:13px;display:block;margin-bottom:4px">每卷章节数</label>
+                        <input type="number" id="opt-chapters" value="5" min="1" max="100" style="width:100%;background:#0a0a15;border:1px solid #333;color:#e0e0e0;padding:8px;border-radius:4px;font-size:13px">
+                    </div>
+                    <div>
+                        <label style="color:#a0a8ff;font-size:13px;display:block;margin-bottom:4px">每章切片数</label>
+                        <input type="number" id="opt-slices" value="20" min="4" max="40" style="width:100%;background:#0a0a15;border:1px solid #333;color:#e0e0e0;padding:8px;border-radius:4px;font-size:13px">
+                    </div>
+                </div>
+
+                <div style="background:#0d1117;border:1px solid #2a3a5c;border-radius:6px;padding:12px;margin-bottom:16px">
+                    <div style="color:#7c8aff;font-size:14px;font-weight:bold;margin-bottom:10px">⚡ 并发配置（每个任务对应一个并发）</div>
+                    <div style="color:#666;font-size:12px;margin-bottom:10px">每个阶段独立并发：角色生成用角色数个并发，大纲用章节数个并发，写作用章节数个并发</div>
+                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px">
+                        <div>
+                            <label style="color:#a0a8ff;font-size:12px;display:block;margin-bottom:3px">角色生成并发数</label>
+                            <input type="number" id="opt-char-concurrency" value="6" min="1" max="200" style="width:100%;background:#0a0a15;border:1px solid #333;color:#e0e0e0;padding:6px;border-radius:4px;font-size:12px">
+                            <div style="color:#555;font-size:11px;margin-top:2px">同时创建几个角色</div>
+                        </div>
+                        <div>
+                            <label style="color:#a0a8ff;font-size:12px;display:block;margin-bottom:3px">大纲生成并发数</label>
+                            <input type="number" id="opt-outline-concurrency" value="5" min="1" max="200" style="width:100%;background:#0a0a15;border:1px solid #333;color:#e0e0e0;padding:6px;border-radius:4px;font-size:12px">
+                            <div style="color:#555;font-size:11px;margin-top:2px">同时规划几个章节大纲</div>
+                        </div>
+                        <div>
+                            <label style="color:#a0a8ff;font-size:12px;display:block;margin-bottom:3px">章节写作并发数</label>
+                            <input type="number" id="opt-chapter-concurrency" value="4" min="1" max="200" style="width:100%;background:#0a0a15;border:1px solid #333;color:#e0e0e0;padding:6px;border-radius:4px;font-size:12px">
+                            <div style="color:#555;font-size:11px;margin-top:2px">同时写几个章节</div>
+                        </div>
+                        <div>
+                            <label style="color:#a0a8ff;font-size:12px;display:block;margin-bottom:3px">API批次大小</label>
+                            <input type="number" id="opt-batch-size" value="8" min="1" max="200" style="width:100%;background:#0a0a15;border:1px solid #333;color:#e0e0e0;padding:6px;border-radius:4px;font-size:12px">
+                            <div style="color:#555;font-size:11px;margin-top:2px">单次API调用合并请求数</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="margin-bottom:16px">
+                    <label style="color:#a0a8ff;font-size:13px;display:block;margin-bottom:4px">额外设定（可选）</label>
+                    <textarea id="opt-extra-context" rows="3" placeholder="例如：这是一个关于修仙者逆天而行的故事..." style="width:100%;background:#0a0a15;border:1px solid #333;color:#e0e0e0;padding:8px;border-radius:4px;font-size:13px;resize:vertical"></textarea>
+                </div>
+
+                <div style="display:flex;gap:8px;flex-wrap:wrap">
+                    <button class="btn success" onclick="startOptimizedPipeline()" id="btn-start-opt">⚡ 启动优化版管线</button>
+                    <a href="/matrix" class="btn" style="text-decoration:none;display:inline-block;text-align:center">📊 查看矩阵视图</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- 全自动管线 -->
+        <div id="tab-auto" class="card" style="display:none">
+            <div style="color:#a0a8ff;font-size:16px;font-weight:bold;margin-bottom:16px">🚀 全自动创作管线</div>
+            <div style="background:#16213e;border:1px solid #333;border-radius:8px;padding:16px;margin-bottom:16px">
+                <div style="color:#888;font-size:13px;margin-bottom:12px">
+                    全自动管线将自动完成：角色设定 → 剧情线路 → 全书大纲 → 卷宗拆分 → 章节规划 → 并发写作
+                </div>
+                
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px;margin-bottom:16px">
+                    <div>
+                        <label style="color:#a0a8ff;font-size:13px;display:block;margin-bottom:4px">主角名称（逗号分隔）</label>
+                        <input type="text" id="auto-protagonists" placeholder="例如：林孤云" style="width:100%;background:#0a0a15;border:1px solid #333;color:#e0e0e0;padding:8px;border-radius:4px;font-size:13px">
+                    </div>
+                    <div>
+                        <label style="color:#a0a8ff;font-size:13px;display:block;margin-bottom:4px">反派名称（可选，逗号分隔）</label>
+                        <input type="text" id="auto-antagonists" placeholder="例如：墨渊" style="width:100%;background:#0a0a15;border:1px solid #333;color:#e0e0e0;padding:8px;border-radius:4px;font-size:13px">
+                    </div>
+                    <div>
+                        <label style="color:#a0a8ff;font-size:13px;display:block;margin-bottom:4px">卷数</label>
+                        <input type="number" id="auto-volumes" value="4" min="1" max="20" style="width:100%;background:#0a0a15;border:1px solid #333;color:#e0e0e0;padding:8px;border-radius:4px;font-size:13px">
+                    </div>
+                    <div>
+                        <label style="color:#a0a8ff;font-size:13px;display:block;margin-bottom:4px">每卷章节数</label>
+                        <input type="number" id="auto-chapters" value="10" min="1" max="100" style="width:100%;background:#0a0a15;border:1px solid #333;color:#e0e0e0;padding:8px;border-radius:4px;font-size:13px">
+                    </div>
+                    <div>
+                        <label style="color:#a0a8ff;font-size:13px;display:block;margin-bottom:4px">并发上限</label>
+                        <input type="number" id="auto-concurrency" value="200" min="1" max="200" style="width:100%;background:#0a0a15;border:1px solid #333;color:#e0e0e0;padding:8px;border-radius:4px;font-size:13px">
+                    </div>
+                </div>
+
+                <div style="margin-bottom:16px">
+                    <label style="color:#a0a8ff;font-size:13px;display:block;margin-bottom:4px">额外设定（可选）</label>
+                    <textarea id="auto-extra-context" rows="3" placeholder="例如：这是一个关于修仙者逆天而行的故事..." style="width:100%;background:#0a0a15;border:1px solid #333;color:#e0e0e0;padding:8px;border-radius:4px;font-size:13px;resize:vertical"></textarea>
+                </div>
+
+                <div style="display:flex;gap:8px;flex-wrap:wrap">
+                    <button class="btn success" onclick="startAutoPipeline()" id="btn-start-auto">🚀 启动全自动管线</button>
+                    <button class="btn" onclick="checkAutoStatus()" id="btn-check-status">检查状态</button>
+                </div>
+
+                <div id="auto-pipeline-status" style="margin-top:16px;display:none">
+                    <div style="background:#0a0a15;border:1px solid #333;border-radius:6px;padding:12px;font-size:13px;line-height:1.6;max-height:400px;overflow-y:auto" id="auto-status-log"></div>
+                </div>
             </div>
         </div>
 
         <!-- 大纲 -->
         <div id="tab-outline" class="card" style="display:none">
-            <div style="color:#a0a8ff;font-size:15px;font-weight:bold;margin-bottom:8px">已生成的大纲</div>
-            <div class="outline-view" id="outline-view">大纲尚未生成。请先编写设定文档，然后启动创作管线。</div>
+            <div style="color:#a0a8ff;font-size:16px;font-weight:bold;margin-bottom:12px">全书大纲</div>
+            <div class="outline-container" id="outline-view">
+                <div class="empty-state">大纲尚未生成。请先编写设定文档，然后启动创作管线。</div>
+            </div>
         </div>
     </div>
 
     <script>
-        let selectedGenre = '';
+        let selectedGenres = [];
         let fieldsData = [];
-        let importedCharacters = [];  // 角色批量导入数据
+        let importedCharacters = [];
 
         function selectGenre(el) {
-            document.querySelectorAll('.genre-chip').forEach(c => c.classList.remove('active'));
-            el.classList.add('active');
-            selectedGenre = el.dataset.genre;
-            // 同步到题材字段
+            const genre = el.dataset.genre;
+            if (el.classList.contains('active')) {
+                el.classList.remove('active');
+                selectedGenres = selectedGenres.filter(g => g !== genre);
+            } else {
+                el.classList.add('active');
+                selectedGenres.push(genre);
+            }
             const genreInput = document.getElementById('field-genre');
-            if (genreInput) genreInput.value = selectedGenre;
+            if (genreInput) genreInput.value = selectedGenres.join('、');
         }
 
         function switchTab(tab) {
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
             event.target.classList.add('active');
             document.getElementById('tab-fields').style.display = tab === 'fields' ? '' : 'none';
+            document.getElementById('tab-optimized').style.display = tab === 'optimized' ? '' : 'none';
+            document.getElementById('tab-auto').style.display = tab === 'auto' ? '' : 'none';
             document.getElementById('tab-style').style.display = tab === 'style' ? '' : 'none';
             document.getElementById('tab-outline').style.display = tab === 'outline' ? '' : 'none';
             if (tab === 'outline') loadOutline();
         }
 
-        // ---- 加载结构化字段 ----
         async function loadFields() {
             try {
                 const r = await fetch('/api/context/spec/fields');
@@ -178,101 +381,135 @@
             const container = document.getElementById('fields-container');
             container.innerHTML = '';
 
-            fields.forEach(f => {
-                const isEmpty = f.is_empty;
-                const group = document.createElement('div');
-                group.className = 'field-group ' + (isEmpty ? 'empty' : 'filled');
-                group.id = 'group-' + f.key;
+            const groups = {
+                'basic': { label: '基础设定', keys: ['genre', 'title', 'theme', 'tone'] },
+                'world': { label: '世界观设定', keys: ['worldview', 'power_system', 'factions', 'locations'] },
+                'characters': { label: '角色设定', keys: ['characters', 'protagonist', 'antagonist'] },
+                'plot': { label: '情节设定', keys: ['conflict', 'storyline', 'outline'] }
+            };
 
-                const header = document.createElement('div');
-                header.className = 'field-header';
+            const totalFields = fields.filter(f => f.key !== 'outline').length;
+            const filledFields = fields.filter(f => !f.is_empty && f.key !== 'outline').length;
+            const progress = totalFields > 0 ? (filledFields / totalFields * 100) : 0;
 
-                const labelSpan = document.createElement('span');
-                labelSpan.className = 'field-label';
-                labelSpan.textContent = f.label;
+            const progressDiv = document.createElement('div');
+            progressDiv.className = 'card';
+            progressDiv.innerHTML = `
+                <div style="display:flex;justify-content:space-between;align-items:center">
+                    <span style="color:#a0a8ff;font-size:15px;font-weight:bold">设定完成度</span>
+                    <span style="color:#2ed573;font-size:14px">${filledFields}/${totalFields} (${Math.round(progress)}%)</span>
+                </div>
+                <div class="progress-bar"><div class="progress-fill" style="width:${progress}%"></div></div>
+            `;
+            container.appendChild(progressDiv);
 
-                const actions = document.createElement('div');
-                actions.className = 'field-actions';
+            Object.entries(groups).forEach(([groupKey, group]) => {
+                const groupFields = fields.filter(f => group.keys.includes(f.key));
+                if (groupFields.length === 0) return;
 
-                const statusSpan = document.createElement('span');
-                statusSpan.className = 'field-status ' + (isEmpty ? 'empty' : 'filled');
-                statusSpan.textContent = isEmpty ? '未填写' : '已填写';
-                statusSpan.id = 'status-' + f.key;
+                const section = document.createElement('div');
+                section.className = 'spec-section';
+                section.innerHTML = `<div class="spec-section-title">${group.label}</div>`;
 
-                actions.appendChild(statusSpan);
+                groupFields.forEach(f => {
+                    const isEmpty = f.is_empty;
+                    const groupDiv = document.createElement('div');
+                    groupDiv.className = 'field-group ' + (isEmpty ? 'empty' : 'filled');
+                    groupDiv.id = 'group-' + f.key;
 
-                if (f.auto_fillable) {
-                    const fillBtn = document.createElement('button');
-                    fillBtn.className = 'btn sm warn';
-                    fillBtn.textContent = 'AI补全';
-                    fillBtn.onclick = () => autoFillField(f.key);
-                    actions.appendChild(fillBtn);
-                }
+                    const header = document.createElement('div');
+                    header.className = 'field-header';
 
-                header.appendChild(labelSpan);
-                header.appendChild(actions);
-                group.appendChild(header);
+                    const labelSpan = document.createElement('span');
+                    labelSpan.className = 'field-label';
+                    labelSpan.textContent = f.label;
 
-                const input = document.createElement('textarea');
-                input.className = 'field-input' + (f.multiline ? '' : ' single');
-                input.id = 'field-' + f.key;
-                input.value = f.value;
-                input.placeholder = f.placeholder;
-                input.rows = f.multiline ? 4 : 1;
-                input.oninput = () => {
-                    // 实时更新状态
-                    const val = input.value.trim();
-                    const st = document.getElementById('status-' + f.key);
-                    const grp = document.getElementById('group-' + f.key);
-                    if (val && !isPlaceholderClient(val)) {
-                        st.className = 'field-status filled';
-                        st.textContent = '已填写';
-                        grp.className = 'field-group filled';
-                    } else {
-                        st.className = 'field-status empty';
-                        st.textContent = '未填写';
-                        grp.className = 'field-group empty';
+                    const actions = document.createElement('div');
+                    actions.className = 'field-actions';
+
+                    const statusSpan = document.createElement('span');
+                    statusSpan.className = 'field-status ' + (isEmpty ? 'empty' : 'filled');
+                    statusSpan.textContent = isEmpty ? '未填写' : '已填写';
+                    statusSpan.id = 'status-' + f.key;
+
+                    actions.appendChild(statusSpan);
+
+                    if (f.auto_fillable) {
+                        const fillBtn = document.createElement('button');
+                        fillBtn.className = 'btn sm warn';
+                        fillBtn.textContent = 'AI补全';
+                        fillBtn.onclick = () => autoFillField(f.key);
+                        actions.appendChild(fillBtn);
                     }
-                };
-                group.appendChild(input);
 
-                const hint = document.createElement('div');
-                hint.className = 'field-hint';
-                hint.textContent = f.placeholder;
-                group.appendChild(hint);
+                    header.appendChild(labelSpan);
+                    header.appendChild(actions);
+                    groupDiv.appendChild(header);
 
-                // 为 characters 字段添加批量导入区域
-                if (f.key === 'characters') {
-                    const importArea = document.createElement('div');
-                    importArea.className = 'char-import-area';
-                    importArea.innerHTML = `
-                        <div style="display:flex;gap:4px;margin-bottom:6px;flex-wrap:wrap">
-                            <button class="btn sm" onclick="toggleCharImport()">批量导入角色</button>
-                            <button class="btn sm warn" onclick="prefillCharIdentity()">模板预填身份</button>
-                            <button class="btn sm success" onclick="fillAllCharsAI()">AI并发补全</button>
-                            <button class="btn sm" onclick="saveCharToField()">保存到设定</button>
-                        </div>
-                        <div id="char-import-box" style="display:none">
-                            <textarea id="char-import-input" class="char-import-input" rows="4"
-                                placeholder="每行一个角色，格式：角色名 性别&#10;例如：&#10;林孤云 男&#10;苏芸 女&#10;枯影道人 男&#10;&#10;也支持：林孤云(男), 苏芸(女)"></textarea>
-                            <div style="margin-top:4px">
-                                <button class="btn sm success" onclick="importCharacters()">导入</button>
+                    const input = document.createElement('textarea');
+                    input.className = 'field-input' + (f.multiline ? '' : ' single');
+                    input.id = 'field-' + f.key;
+                    input.value = f.value;
+                    input.placeholder = f.placeholder;
+                    input.rows = f.multiline ? 4 : 1;
+                    input.oninput = () => {
+                        const val = input.value.trim();
+                        const st = document.getElementById('status-' + f.key);
+                        const grp = document.getElementById('group-' + f.key);
+                        if (val && !isPlaceholderClient(val)) {
+                            st.className = 'field-status filled';
+                            st.textContent = '已填写';
+                            grp.className = 'field-group filled';
+                        } else {
+                            st.className = 'field-status empty';
+                            st.textContent = '未填写';
+                            grp.className = 'field-group empty';
+                        }
+                    };
+                    groupDiv.appendChild(input);
+
+                    const hint = document.createElement('div');
+                    hint.className = 'field-hint';
+                    hint.textContent = f.placeholder;
+                    groupDiv.appendChild(hint);
+
+                    if (f.key === 'characters') {
+                        const importArea = document.createElement('div');
+                        importArea.className = 'char-import-area';
+                        importArea.innerHTML = `
+                            <div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap">
+                                <button class="btn sm" onclick="toggleCharImport()">批量导入角色</button>
+                                <button class="btn sm warn" onclick="prefillCharIdentity()">模板预填身份</button>
+                                <button class="btn sm success" onclick="fillAllCharsAI()">AI并发补全</button>
+                                <button class="btn sm" onclick="saveCharToField()">保存到设定</button>
                             </div>
-                        </div>
-                        <div id="char-table-container"></div>
-                    `;
-                    group.appendChild(importArea);
-                }
+                            <div id="char-import-box" style="display:none">
+                                <textarea id="char-import-input" class="char-import-input" rows="4"
+                                    placeholder="每行一个角色，格式：角色名 性别&#10;例如：&#10;林孤云 男&#10;苏芸 女&#10;枯影道人 男&#10;&#10;也支持：林孤云(男), 苏芸(女)"></textarea>
+                                <div style="margin-top:6px">
+                                    <button class="btn sm success" onclick="importCharacters()">导入</button>
+                                </div>
+                            </div>
+                            <div id="char-table-container"></div>
+                        `;
+                        groupDiv.appendChild(importArea);
+                    }
 
-                container.appendChild(group);
+                    section.appendChild(groupDiv);
+                });
+
+                container.appendChild(section);
             });
 
-            // 自动检测题材
             const genreField = fields.find(f => f.key === 'genre');
             if (genreField && genreField.value) {
                 document.querySelectorAll('.genre-chip').forEach(c => {
-                    if (genreField.value.includes(c.dataset.genre)) c.classList.add('active');
-                    selectedGenre = c.dataset.genre;
+                    if (genreField.value.includes(c.dataset.genre)) {
+                        c.classList.add('active');
+                        if (!selectedGenres.includes(c.dataset.genre)) {
+                            selectedGenres.push(c.dataset.genre);
+                        }
+                    }
                 });
             }
         }
@@ -284,7 +521,6 @@
             return false;
         }
 
-        // ---- 角色批量导入 ----
         function toggleCharImport() {
             const box = document.getElementById('char-import-box');
             box.style.display = box.style.display === 'none' ? '' : 'none';
@@ -322,7 +558,7 @@
                 const r = await fetch('/api/characters/import', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({text, genre: selectedGenre || '仙侠'})
+                    body: JSON.stringify({text, genre: selectedGenres.join('、') || '仙侠'})
                 });
                 const d = await r.json();
                 importedCharacters = d.characters;
@@ -336,7 +572,7 @@
                 const r = await fetch('/api/characters/prefill', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({characters: importedCharacters, genre: selectedGenre || '仙侠'})
+                    body: JSON.stringify({characters: importedCharacters, genre: selectedGenres.join('、') || '仙侠'})
                 });
                 const d = await r.json();
                 importedCharacters = d.characters;
@@ -347,7 +583,6 @@
         async function fillSingleChar(index) {
             const c = importedCharacters[index];
             if (!c) return;
-            // 收集上下文
             let specContext = '';
             fieldsData.forEach(f => {
                 const input = document.getElementById('field-' + f.key);
@@ -359,7 +594,7 @@
                 const r = await fetch('/api/characters/fill_single', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({name: c.name, gender: c.gender, genre: selectedGenre || '仙侠', spec_context: specContext})
+                    body: JSON.stringify({name: c.name, gender: c.gender, genre: selectedGenres.join('、') || '仙侠', spec_context: specContext})
                 });
                 const d = await r.json();
                 if (d.status === 'filled') {
@@ -382,7 +617,7 @@
                 const r = await fetch('/api/characters/fill_batch', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({characters: importedCharacters, genre: selectedGenre || '仙侠', spec_context: specContext})
+                    body: JSON.stringify({characters: importedCharacters, genre: selectedGenres.join('、') || '仙侠', spec_context: specContext})
                 });
                 const d = await r.json();
                 if (d.characters) {
@@ -400,12 +635,10 @@
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({characters: importedCharacters})
                 });
-                // 刷新字段显示
                 await loadFields();
             } catch(e) { console.error('save error:', e); }
         }
 
-        // ---- 保存单条字段 ----
         async function saveField(key) {
             const input = document.getElementById('field-' + key);
             if (!input) return;
@@ -418,7 +651,6 @@
             } catch(e) {}
         }
 
-        // ---- 保存全部字段 ----
         async function saveAllFields() {
             const fields = [];
             fieldsData.forEach(f => {
@@ -434,13 +666,11 @@
             } catch(e) {}
         }
 
-        // ---- 逐条AI补全 ----
         async function autoFillField(key) {
             const btn = event.target;
             btn.textContent = '生成中...';
             btn.disabled = true;
 
-            // 收集当前上下文
             let specContext = '';
             fieldsData.forEach(f => {
                 const input = document.getElementById('field-' + f.key);
@@ -453,19 +683,17 @@
                 const r = await fetch('/api/context/auto_fill/' + key, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({genre: selectedGenre || '仙侠', spec_context: specContext})
+                    body: JSON.stringify({genre: selectedGenres.join('、') || '仙侠', spec_context: specContext})
                 });
                 const d = await r.json();
 
                 if (d.status === 'filled') {
                     const input = document.getElementById('field-' + key);
                     if (input) input.value = d.value;
-                    // 更新状态
                     const st = document.getElementById('status-' + key);
                     const grp = document.getElementById('group-' + key);
                     if (st) { st.className = 'field-status filled'; st.textContent = '已填写'; }
                     if (grp) grp.className = 'field-group filled';
-                    // 自动保存
                     await saveField(key);
                 }
             } catch(e) {
@@ -476,9 +704,7 @@
             btn.disabled = false;
         }
 
-        // ---- 模板一键补全 ----
         async function autoFillAllTemplate() {
-            // 对每个可补全的字段调用模板补全
             const promises = [];
             fieldsData.forEach(f => {
                 if (f.auto_fillable && f.is_empty) {
@@ -488,22 +714,18 @@
             await Promise.all(promises);
         }
 
-        // ---- AI并发补全 ----
         async function autoFillAllAI() {
             await saveAllFields();
-            // 读取当前spec
             try {
                 const r = await fetch('/api/context/spec');
                 const d = await r.json();
                 const cr = await fetch('/api/context/concurrent_fill', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({content: d.content || '', genre: selectedGenre})
+                    body: JSON.stringify({content: d.content || '', genre: selectedGenres.join('、')})
                 });
                 const result = await cr.json();
-                // 重新加载字段
                 await loadFields();
-                // 更新风格
                 if (result.style_md) {
                     document.getElementById('style-editor').value = result.style_md;
                 }
@@ -512,7 +734,6 @@
             }
         }
 
-        // ---- 风格 ----
         async function loadStyle() {
             try {
                 const r = await fetch('/api/context/style');
@@ -536,7 +757,6 @@
         }
 
         async function autoFillStyle() {
-            // 使用concurrent_fill的风格部分
             await saveAllFields();
             try {
                 const r = await fetch('/api/context/spec');
@@ -544,7 +764,7 @@
                 const cr = await fetch('/api/context/concurrent_fill', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({content: d.content || '', genre: selectedGenre})
+                    body: JSON.stringify({content: d.content || '', genre: selectedGenres.join('、')})
                 });
                 const result = await cr.json();
                 if (result.style_md) {
@@ -554,29 +774,153 @@
             } catch(e) {}
         }
 
-        // ---- 大纲 ----
         async function loadOutline() {
             try {
                 const r = await fetch('/api/output/outline');
                 const d = await r.json();
                 const el = document.getElementById('outline-view');
-                if (d.exists === false) {
-                    el.textContent = '大纲尚未生成。请先编写设定文档，然后启动创作管线。';
+                if (d.exists === false || !d.raw_output) {
+                    el.innerHTML = '<div class="empty-state">大纲尚未生成。请先编写设定文档，然后启动创作管线。</div>';
                 } else {
-                    el.textContent = JSON.stringify(d, null, 2);
+                    let outlineData;
+                    try {
+                        outlineData = JSON.parse(d.raw_output);
+                    } catch(e) {
+                        el.innerHTML = '<div class="empty-state">大纲解析失败，请重新生成。</div>';
+                        return;
+                    }
+                    renderOutline(outlineData);
                 }
             } catch(e) {
-                document.getElementById('outline-view').textContent = '加载失败';
+                document.getElementById('outline-view').innerHTML = '<div class="empty-state">加载失败</div>';
             }
         }
 
-        // ---- 管线控制 ----
+        function renderOutline(data) {
+            const el = document.getElementById('outline-view');
+            const title = data.title || '未命名小说';
+            const genre = data.genre || '未知';
+            const mainConflict = data.mainConflict || '';
+            const ending = data.endingDirection || {};
+            const volumes = data.volumes || [];
+
+            let totalChapters = volumes.reduce((sum, v) => sum + (v.chapter_count || 0), 0);
+
+            let html = `
+                <div class="outline-header">
+                    <div class="outline-title">${title}</div>
+                    <div class="outline-meta">
+                        <div class="outline-meta-item">
+                            <span class="outline-meta-label">题材:</span>
+                            <span class="outline-meta-value">${genre}</span>
+                        </div>
+                        <div class="outline-meta-item">
+                            <span class="outline-meta-label">卷数:</span>
+                            <span class="outline-meta-value">${volumes.length} 卷</span>
+                        </div>
+                        <div class="outline-meta-item">
+                            <span class="outline-meta-label">总章节:</span>
+                            <span class="outline-meta-value">${totalChapters} 章</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            if (mainConflict) {
+                html += `
+                    <div class="conflict-card">
+                        <div class="conflict-title">🔥 核心冲突</div>
+                        <div class="conflict-text">${mainConflict}</div>
+                    </div>
+                `;
+            }
+
+            if (ending.summary) {
+                html += `
+                    <div class="ending-card">
+                        <div class="ending-title">✨ 结局方向</div>
+                        <div class="ending-text">
+                            <div style="margin-bottom:8px">
+                                <span style="color:#888">类型:</span>
+                                <span style="color:#e0e0e0;margin-left:4px">${ending.type || '未知'}</span>
+                            </div>
+                            <div>${ending.summary}</div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            html += '<div style="margin-top:24px">';
+            volumes.forEach((vol, idx) => {
+                const volId = vol.volume_id || (idx + 1);
+                const volTitle = vol.volume_title || `第${volId}卷`;
+                const theme = vol.theme || '';
+                const chapterCount = vol.chapter_count || 0;
+                const events = vol.main_events || [];
+
+                html += `
+                    <div class="volume-card">
+                        <div class="volume-header" onclick="toggleVolume(${idx})">
+                            <div class="volume-title">
+                                <span class="expand-icon" id="icon-${idx}">▶</span>
+                                第${volId}卷：${volTitle}
+                            </div>
+                            ${theme ? `<div class="volume-theme">${theme}</div>` : ''}
+                            <div class="volume-info">
+                                <div class="volume-info-item">📖 ${chapterCount} 章</div>
+                                <div class="volume-info-item">🎯 ${events.length} 个主要事件</div>
+                            </div>
+                        </div>
+                        <div class="volume-content" id="vol-content-${idx}">
+                            <div class="chapter-list">
+                `;
+
+                events.forEach((evt, eIdx) => {
+                    const eventName = evt.event_name || `事件${eIdx + 1}`;
+                    const desc = evt.description || '';
+                    html += `
+                        <div class="chapter-item">
+                            <div class="chapter-title">📌 ${eventName}</div>
+                            ${desc ? `<div class="chapter-summary">${desc}</div>` : ''}
+                        </div>
+                    `;
+                });
+
+                html += `
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            html += '</div>';
+
+            el.innerHTML = html;
+        }
+
+        function toggleVolume(idx) {
+            const content = document.getElementById(`vol-content-${idx}`);
+            const icon = document.getElementById(`icon-${idx}`);
+            if (content.classList.contains('expanded')) {
+                content.classList.remove('expanded');
+                icon.classList.remove('rotated');
+            } else {
+                content.classList.add('expanded');
+                icon.classList.add('rotated');
+            }
+        }
+
         async function startPipeline() {
             await saveAllFields();
             try {
+                const modelCheck = await fetch('/api/models');
+                const modelData = await modelCheck.json();
+                if (!modelData.service_running) {
+                    openModelModal();
+                    return;
+                }
                 const r = await fetch('/api/pipeline/start', {method: 'POST'});
                 const d = await r.json();
-                alert('管线已' + (d.status === 'started' ? '启动' : d.status));
+                updatePipelineUI('running', '管线已启动');
             } catch(e) { alert('启动失败: ' + e); }
         }
 
@@ -584,8 +928,207 @@
             try {
                 const r = await fetch('/api/pipeline/resume', {method: 'POST'});
                 const d = await r.json();
-                alert('管线已' + (d.status === 'resumed' ? '恢复' : d.status));
+                updatePipelineUI('running', '管线已恢复');
             } catch(e) { alert('恢复失败: ' + e); }
+        }
+
+        function updatePipelineUI(state, stage) {
+            const el = document.getElementById('pipeline-state');
+            el.textContent = '管线状态: ' + (state || '未知');
+            el.className = 'state ' + (state || '');
+            if (stage) {
+                document.getElementById('pipeline-progress-text').textContent = stage;
+            }
+        }
+
+        function updateProgressUI(data) {
+            const bar = document.getElementById('pipeline-progress-bar');
+            const text = document.getElementById('pipeline-progress-text');
+            const stateEl = document.getElementById('pipeline-state');
+
+            if (data.status === 'running' || data.status === 'started') {
+                stateEl.textContent = '管线状态: 运行中';
+                stateEl.className = 'state running';
+            } else if (data.status === 'completed') {
+                stateEl.textContent = '管线状态: 已完成';
+                stateEl.className = 'state completed';
+                bar.style.width = '100%';
+                bar.style.background = '#2ed573';
+            } else if (data.status === 'failed') {
+                stateEl.textContent = '管线状态: 失败';
+                stateEl.className = 'state failed';
+                bar.style.background = '#ff4757';
+            } else if (data.status === 'idle') {
+                stateEl.textContent = '管线状态: 空闲';
+                stateEl.className = 'state';
+                bar.style.width = '0%';
+            }
+
+            if (data.current_stage) {
+                text.textContent = data.current_stage;
+            }
+
+            if (data.total_tasks > 0) {
+                const pct = Math.round((data.completed_tasks || 0) / data.total_tasks * 100);
+                bar.style.width = pct + '%';
+                text.textContent = (data.current_stage || '') + ` (${data.completed_tasks || 0}/${data.total_tasks})`;
+            }
+        }
+
+        let wsConnected = false;
+        let wsRetryCount = 0;
+
+        function connectWebSocket() {
+            const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = protocol + '//' + location.host + '/socket.io/?EIO=4&transport=websocket';
+
+            const socket = io(location.host, {
+                transports: ['websocket'],
+                reconnection: true,
+                reconnectionAttempts: 20,
+                reconnectionDelay: 3000,
+            });
+
+            socket.on('connect', () => {
+                wsConnected = true;
+                wsRetryCount = 0;
+                console.log('[WS] 已连接');
+            });
+
+            socket.on('disconnect', () => {
+                wsConnected = false;
+                console.log('[WS] 已断开');
+            });
+
+            socket.on('progress_update', (data) => {
+                updateProgressUI(data);
+            });
+
+            socket.on('connected', (data) => {
+                console.log('[WS] 服务器确认:', data.message);
+                socket.emit('request_progress');
+            });
+
+            return socket;
+        }
+
+        let wsSocket = null;
+
+        async function startOptimizedPipeline() {
+            await saveAllFields();
+
+            const theme = selectedGenres.join('、') || '仙侠';
+            const protagonists = document.getElementById('opt-protagonists').value.trim();
+            const protagonistNames = protagonists ? protagonists.split(/[,，]/).map(s => s.trim()).filter(s => s) : [];
+            const characterCount = parseInt(document.getElementById('opt-character-count').value) || 6;
+
+            const data = {
+                theme: theme,
+                character_count: characterCount,
+                protagonist_names: protagonistNames,
+                antagonist_names: document.getElementById('opt-antagonists').value.split(/[,，]/).map(s => s.trim()).filter(s => s),
+                volume_count: parseInt(document.getElementById('opt-volumes').value) || 3,
+                chapters_per_volume: parseInt(document.getElementById('opt-chapters').value) || 5,
+                slices_per_chapter: parseInt(document.getElementById('opt-slices').value) || 20,
+                concurrency_config: {
+                    character_concurrency: parseInt(document.getElementById('opt-char-concurrency').value) || characterCount,
+                    outline_concurrency: parseInt(document.getElementById('opt-outline-concurrency').value) || 5,
+                    chapter_concurrency: parseInt(document.getElementById('opt-chapter-concurrency').value) || 4,
+                    batch_size: parseInt(document.getElementById('opt-batch-size').value) || 8,
+                },
+                extra_context: document.getElementById('opt-extra-context').value.trim(),
+            };
+
+            const btn = document.getElementById('btn-start-opt');
+            btn.textContent = '⏳ 管线运行中...';
+            btn.disabled = true;
+            updatePipelineUI('running', '优化版管线启动中...');
+
+            globalState.update(data);
+
+            try {
+                const r = await fetch('/api/pipeline/optimized', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(data)
+                });
+                const result = await r.json();
+
+                updatePipelineUI('running', '优化版管线已启动');
+
+                setTimeout(() => window.open('/matrix', '_blank'), 500);
+            } catch(e) {
+                alert('启动失败: ' + e);
+                updatePipelineUI('failed', '启动失败');
+            }
+
+            btn.textContent = '⚡ 启动优化版管线';
+            btn.disabled = false;
+        }
+
+        async function startAutoPipeline() {
+            await saveAllFields();
+
+            const protagonists = document.getElementById('auto-protagonists').value.trim();
+
+            const data = {
+                theme: selectedGenres.join('、') || '仙侠',
+                protagonist_names: protagonists ? protagonists.split(/[,，]/).map(s => s.trim()).filter(s => s) : [],
+                antagonist_names: document.getElementById('auto-antagonists').value.split(/[,，]/).map(s => s.trim()).filter(s => s),
+                volume_count: parseInt(document.getElementById('auto-volumes').value) || 3,
+                chapters_per_volume: parseInt(document.getElementById('auto-chapters').value) || 5,
+                concurrency_config: {
+                    character_concurrency: 6,
+                    outline_concurrency: 5,
+                    chapter_concurrency: 4,
+                    batch_size: 8,
+                },
+                extra_context: document.getElementById('auto-extra-context').value.trim(),
+            };
+
+            const btn = document.getElementById('btn-start-auto');
+            btn.textContent = '⏳ 管线运行中...';
+            btn.disabled = true;
+            updatePipelineUI('running', '全自动管线启动中...');
+
+            const statusDiv = document.getElementById('auto-pipeline-status');
+            const statusLog = document.getElementById('auto-status-log');
+            statusDiv.style.display = 'block';
+            statusLog.innerHTML = '<div style="color:#2ed573">🚀 全自动管线已启动...</div>';
+
+            try {
+                const r = await fetch('/api/pipeline/auto', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(data)
+                });
+                const result = await r.json();
+
+                if (result.status === 'started') {
+                    statusLog.innerHTML += '<div style="color:#a0a8ff;margin-top:8px">管线正在后台运行，请等待完成...</div>';
+                    updatePipelineUI('running', '全自动管线运行中');
+                } else {
+                    statusLog.innerHTML += `<div style="color:#ff4757;margin-top:8px">❌ 启动失败: ${result.message || '未知'}</div>`;
+                    updatePipelineUI('failed', '启动失败');
+                }
+            } catch(e) {
+                statusLog.innerHTML += `<div style="color:#ff4757;margin-top:8px">❌ 请求失败: ${e}</div>`;
+                updatePipelineUI('failed', '请求失败');
+            }
+
+            btn.textContent = '🚀 启动全自动管线';
+            btn.disabled = false;
+        }
+
+        async function checkAutoStatus() {
+            try {
+                const r = await fetch('/api/pipeline/status');
+                const d = await r.json();
+                const statusLog = document.getElementById('auto-status-log');
+                statusLog.innerHTML = `<div style="color:#a0a8ff">当前管线状态: ${d.state || '未知'}</div>`;
+            } catch(e) {
+                console.error('检查状态失败:', e);
+            }
         }
 
         async function pollStatus() {
@@ -598,19 +1141,17 @@
             } catch(e) {}
         }
 
-        // ---- 初始化 ----
         loadFields();
         loadStyle();
         pollStatus();
-        setInterval(pollStatus, 3000);
+        setInterval(pollStatus, 5000);
 
-        // 页面加载后自动检测：如果所有必填字段都有值，自动启动管线
+        wsSocket = connectWebSocket();
+
         setTimeout(async () => {
             await loadFields();
-            // 检查是否有空的关键字段
             const emptyFields = fieldsData.filter(f => f.is_empty && f.key !== 'outline');
             if (emptyFields.length === 0) {
-                // 所有设定已填写，自动启动管线
                 try {
                     const r = await fetch('/api/status');
                     const d = await r.json();
@@ -621,6 +1162,251 @@
                 } catch(e) {}
             }
         }, 2000);
+
+        let _selectedModelPath = null;
+        let _modelsData = [];
+
+        function openModelModal() {
+            document.getElementById('model-modal-overlay').classList.add('active');
+            loadModels();
+        }
+
+        function closeModelModal() {
+            document.getElementById('model-modal-overlay').classList.remove('active');
+        }
+
+        async function loadModels() {
+            const listEl = document.getElementById('model-list');
+            listEl.innerHTML = '加载模型列表...';
+
+            try {
+                const r = await fetch('/api/models');
+                const d = await r.json();
+                _modelsData = d.models || [];
+
+                const dot = document.getElementById('modal-service-dot');
+                const text = document.getElementById('modal-service-text');
+                const stopBtn = document.getElementById('btn-stop-model');
+                const startBtn = document.getElementById('btn-start-model');
+
+                if (d.service_running) {
+                    dot.className = 'dot running';
+                    text.textContent = '服务运行中 - ' + (d.current_model ? d.current_model.split(/[/\\]/).pop() : '未知模型');
+                    stopBtn.style.display = 'inline-block';
+                    startBtn.textContent = '切换模型';
+                } else {
+                    dot.className = 'dot stopped';
+                    text.textContent = '服务未启动';
+                    stopBtn.style.display = 'none';
+                    startBtn.textContent = '启动模型';
+                }
+
+                if (_selectedModelPath === null) {
+                    if (d.current_model) {
+                        _selectedModelPath = d.current_model;
+                    } else {
+                        const defaultModel = _modelsData.find(m => m.name.includes('rwkv7-g1f-2.9b-20260420-ctx8192'));
+                        const stDefault = defaultModel && _modelsData.find(m => m.name.includes('rwkv7-g1f-2.9b-20260420-ctx8192') && m.format === 'st');
+                        _selectedModelPath = stDefault ? stDefault.path : (defaultModel ? defaultModel.path : (_modelsData.find(m => m.is_recommended) || _modelsData[0]).path);
+                    }
+                }
+
+                if (_modelsData.length === 0) {
+                    listEl.innerHTML = '<div style="color:#ff4757; padding:20px; text-align:center;">未找到可用模型<br><span style="font-size:12px;color:#888;">请将 .st 或 .pth 模型文件放入 rwkv_models/ 目录</span></div>';
+                    return;
+                }
+
+                listEl.innerHTML = _modelsData.map((m, i) => {
+                    const selected = m.path === _selectedModelPath ? 'selected' : '';
+                    const badgeClass = m.is_recommended ? 'recommended' : (m.format === 'st' ? 'st' : 'pth');
+                    const badgeText = m.is_recommended ? '推荐' : m.format.toUpperCase();
+                    const tags = [];
+                    if (m.size_label) tags.push(m.size_label);
+                    if (m.version) tags.push(m.version);
+                    if (m.ctx) tags.push('ctx' + m.ctx);
+                    if (m.date) tags.push(m.date);
+                    let convertNote = '';
+                    if (m.format === 'pth' || m.format === 'pt') {
+                        if (m.has_st) {
+                            convertNote = '<div style="color:#2ed573; font-size:11px; margin-top:4px;">✓ 已有对应 .st 文件，启动时自动使用</div>';
+                        } else {
+                            convertNote = '<div style="color:#ffa502; font-size:11px; margin-top:4px;">⚠ 启动时将自动转换为 .st 格式（需等待）</div>';
+                        }
+                    }
+                    return `<div class="model-item ${selected}" onclick="selectModel(${i})" id="model-item-${i}">
+                        <div>
+                            <div class="model-name">${m.name}</div>
+                            <div class="model-info">${tags.map(t => '<span>' + t + '</span>').join('')}</div>
+                            ${convertNote}
+                        </div>
+                        <div style="text-align:right;">
+                            <span class="model-badge ${badgeClass}">${badgeText}</span>
+                            <div class="model-size">${m.size_mb} MB</div>
+                        </div>
+                    </div>`;
+                }).join('');
+            } catch(e) {
+                listEl.innerHTML = '<div style="color:#ff4757; padding:20px; text-align:center;">加载失败: ' + e.message + '</div>';
+            }
+        }
+
+        function selectModel(idx) {
+            _selectedModelPath = _modelsData[idx].path;
+            document.querySelectorAll('.model-item').forEach(el => el.classList.remove('selected'));
+            document.getElementById('model-item-' + idx).classList.add('selected');
+        }
+
+        async function startSelectedModel() {
+            if (!_selectedModelPath) { alert('请先选择一个模型'); return; }
+
+            const dot = document.getElementById('modal-service-dot');
+            const text = document.getElementById('modal-service-text');
+            const startBtn = document.getElementById('btn-start-model');
+
+            const selectedModel = _modelsData.find(m => m.path === _selectedModelPath);
+            const isPth = selectedModel && (selectedModel.format === 'pth' || selectedModel.format === 'pt');
+            const hasSt = selectedModel && selectedModel.has_st;
+
+            if (isPth && !hasSt) {
+                dot.className = 'dot starting';
+                text.textContent = '正在转换模型为 .st 格式，请耐心等待...';
+            } else if (isPth && hasSt) {
+                dot.className = 'dot starting';
+                text.textContent = '使用已有 .st 文件启动中...';
+            } else {
+                dot.className = 'dot starting';
+                text.textContent = '正在启动模型...';
+            }
+            startBtn.disabled = true;
+            startBtn.textContent = '处理中...';
+
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 1800000);
+
+                const r = await fetch('/api/models/start', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ model_path: _selectedModelPath }),
+                    signal: controller.signal,
+                });
+                clearTimeout(timeoutId);
+                const d = await r.json();
+
+                if (d.status === 'started') {
+                    dot.className = 'dot running';
+                    const actualModel = d.model ? d.model.split(/[/\\]/).pop() : _selectedModelPath.split(/[/\\]/).pop();
+                    text.textContent = '服务已启动 - ' + actualModel;
+                    startBtn.textContent = '切换模型';
+                    updateModelStatusBar(true, d.model || _selectedModelPath);
+                    setTimeout(() => { closeModelModal(); }, 1000);
+                } else if (d.status === 'already_running') {
+                    dot.className = 'dot running';
+                    text.textContent = d.message;
+                    startBtn.textContent = '切换模型';
+                } else {
+                    dot.className = 'dot stopped';
+                    text.textContent = '启动失败: ' + (d.message || '未知错误');
+                    startBtn.textContent = '启动模型';
+                }
+            } catch(e) {
+                dot.className = 'dot stopped';
+                text.textContent = '请求失败: ' + e.message;
+            }
+
+            startBtn.disabled = false;
+        }
+
+        async function stopModelService() {
+            const dot = document.getElementById('modal-service-dot');
+            const text = document.getElementById('modal-service-text');
+            const stopBtn = document.getElementById('btn-stop-model');
+            const startBtn = document.getElementById('btn-start-model');
+
+            dot.className = 'dot starting';
+            text.textContent = '正在停止服务...';
+            stopBtn.disabled = true;
+
+            try {
+                await fetch('/api/models/stop', { method: 'POST' });
+                dot.className = 'dot stopped';
+                text.textContent = '服务已停止';
+                stopBtn.style.display = 'none';
+                startBtn.textContent = '启动模型';
+                updateModelStatusBar(false, null);
+            } catch(e) {
+                text.textContent = '停止失败: ' + e.message;
+            }
+
+            stopBtn.disabled = false;
+        }
+
+        function updateModelStatusBar(running, modelPath) {
+            const dot = document.getElementById('model-dot');
+            const text = document.getElementById('model-status-text');
+            if (running && modelPath) {
+                dot.style.background = '#2ed573';
+                dot.style.boxShadow = '0 0 6px #2ed573';
+                text.textContent = modelPath.split(/[/\\]/).pop();
+            } else {
+                dot.style.background = '#ff4757';
+                dot.style.boxShadow = 'none';
+                text.textContent = '未选择模型';
+            }
+        }
+
+        async function checkModelStatus() {
+            try {
+                const r = await fetch('/api/models');
+                const d = await r.json();
+                if (d.service_running && d.current_model) {
+                    updateModelStatusBar(true, d.current_model);
+                } else {
+                    updateModelStatusBar(false, null);
+                }
+            } catch(e) {}
+        }
+
+        checkModelStatus();
+
+        globalState.connect();
+        globalState.syncFormInputs({
+            'character_count': 'opt-character-count',
+            'protagonist_names': 'opt-protagonists',
+            'antagonist_names': 'opt-antagonists',
+            'volume_count': 'opt-volumes',
+            'chapters_per_volume': 'opt-chapters',
+            'slices_per_chapter': 'opt-slices',
+        });
+        globalState.on('state_update', (changes) => {
+            if ('concurrency_config' in changes) {
+                const cc = changes.concurrency_config;
+                if (cc.character_concurrency) document.getElementById('opt-char-concurrency').value = cc.character_concurrency;
+                if (cc.outline_concurrency) document.getElementById('opt-outline-concurrency').value = cc.outline_concurrency;
+                if (cc.chapter_concurrency) document.getElementById('opt-chapter-concurrency').value = cc.chapter_concurrency;
+                if (cc.batch_size) document.getElementById('opt-batch-size').value = cc.batch_size;
+            }
+            if ('extra_context' in changes) {
+                const el = document.getElementById('opt-extra-context');
+                if (el && document.activeElement !== el) el.value = changes.extra_context;
+            }
+        });
     </script>
+
+    <div class="model-modal-overlay" id="model-modal-overlay">
+        <div class="model-modal">
+            <h2>选择推理模型</h2>
+            <div class="model-service-status" id="model-service-status">
+                <span class="dot stopped" id="modal-service-dot"></span>
+                <span id="modal-service-text" style="font-size:14px;">服务未启动</span>
+            </div>
+            <div id="model-list">加载中...</div>
+            <div class="model-modal-actions">
+                <button class="btn danger" id="btn-stop-model" onclick="stopModelService()" style="display:none;">停止服务</button>
+                <button class="btn" onclick="closeModelModal()">取消</button>
+                <button class="btn success" id="btn-start-model" onclick="startSelectedModel()">启动模型</button>
+            </div>
+        </div>
+    </div>
 </body>
 </html>

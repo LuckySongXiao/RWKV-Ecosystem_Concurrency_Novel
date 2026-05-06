@@ -1,5 +1,24 @@
 {
-  "raw_output": "\n```json\n{\n  \"title\": \"混沌道体：三界劫数录\",\n  \"genre\": \"仙侠、道士、僵尸\",\n  \"volumes\": [\n    {\n      \"volume_id\": 1,\n      \"volume_title\": \"灵气枯竭·暗流涌动\",\n      \"theme\": \"天地异变与宗门危机的序幕，主角觉醒与初步抉择\",\n      \"chapter_count\": 12,\n      \"main_events\": [\n        {\"event_name\":\"青云宗灵脉检测大典\",\"description\":\"凌云在秘境中意外触发禁忌法坛，展现混沌道体雏形\"},\n        {\"event_name\":\"素问仙子陨落预兆\",\"description\":\"天庭巡查使幽岚首次出现，引发宗门震动\"},\n        {\"event_name\":\"血煞殿魔威初显\",\"description\":\"墨渊为父报仇潜入青云宗，与凌云产生命运交集\"}\n      ]\n    },\n    {\n      \"volume_id\": 2,\n      \"volume_title\": \"正邪之辩·道心初成\",\n      \"theme\": \"三界格局揭示与主角修行突破，核心冲突浮出水面\",\n      \"chapter_count\": 15,\n      \"main_events\": [\n        {\"event_name\":\"九转轮回图传承觉醒\",\"description\":\"凌云在秘境中获得上古仙人指引\"},\n        {\"event_name\":\"血煞殿内部叛乱\",\"description\":\"墨渊弑父夺权的真相逐渐浮出水面\"},\n        {\"event_name\":\"幽冥圣女现身\",\"description\":\"神秘势力介入三界平衡\"}\n      ]\n    },\n    {\n      \"volume_id\": 3, \n      \"volume_title\": \"天劫降临·众生皆棋\",\n      \"theme\": \"大劫征兆显现，各方势力开始明争暗斗\", \n      \"chapter_count\": 18,\n      \"main_events\":[\n        {\"event_name\":\"天庭清理计划启动\",\"description\":\"针对异类修士的系统性迫害开始\"},\n        {\"event_name\":\"白羽家族灭门惨案\",\"description\":\"冰魄剑体传人被卷入漩涡中心\"}, \n        {\"event_name\":\"混沌灵脉坐标泄露\",\"description\": \"多方势力为争夺资源展开厮杀\"}\n      ]\n    },\n    {\n      \"volume_id\": 4, \n      \"volume_title\": \"虚空灵源·代价沉重\", \n      \"theme\": \"终极真相揭露与最终决战准备，牺牲与抉择考验\", \n      \"chapter_count\": 20,\n      \"main_events\":[\n        {\"event_name\":\"混沌道体完全觉醒\",\"description\":\"凌云承受身体崩坏之痛掌握新力量\"},\n        {\"event_name\":\"墨渊血祭仪式逆转\",\"description：\"魔道至尊选择背叛自己的阵营\"}, \n        {\"event_name：\"三界联盟最后一战\",\" description：\"所有势力在末日前夕展开决定性对抗\"}\n      ]\n    }\n  ],\n  \"mainConflict\": \"当天地灵气枯竭预示着下一个毁灭性大劫来临，凌云这位拥有混沌道体的凡俗修士必须在拯救众生与维持自身纯粹之间做出抉择。他既要对抗意图利用劫数完成魔道伟业的宿敌墨渊，又要面对天庭试图清理'异类'的阴谋，更需解开上古仙祖后裔身份带来的命运枷锁。\",\n  \"endingDirection\": {\n    \"type\": \"悲壮式希望结局\", \n    \"summary\": \"凌云以混沌道体为代价重塑灵气循环体系，化作新时代的守护者；墨渊放弃魔道野心成为正邪平衡者；素问仙子残魂归位重建青云宗医修堂；幽岚在追寻真相中领悟天命无常。三界进入新纪元，但劫数种子已埋下伏笔。\",\n    \"keyElements\": [\"主角牺牲与升华\",\"反派转变与救赎\",\"势力格局重组\",\"留白未来发展\"]\n  },\n  \"worldSettingSummary\": {\n    \"coreConcepts\":[\"灵气循环体系（天地人三界）\",\"九品境界划分（炼气→渡劫）\",\"上古仙人遗产争夺\"],\n    \"culturalFeatures\":[\"丹药/法器/术法三位一体修行体系\",\"宗门世家大族势力格局\",\"妖族冥府等非人势力存在\"],\n    \"historicalContext\":\"万年前仙祖陨落导致灵脉枯竭，当前正处于新一轮大劫爆发前夜。各方势力都在寻找延续文明的方法，而混沌道体可能是唯一希望也可能是终极灾难。\",\n    \"uniqueMechanics\":[\"道韵感应系统（修行者对天地规则的理解程度）\",\"因果律干涉（重要选择会改变世界线）\"]\n  },\n  \"initialCharacters\": [\n    {\n      \"name\": \"凌云\",\n      \"status\": \"混沌道体觉醒中\",\n      \"arcProgression\": [\"废柴弟子→外门精英→宗门叛徒→三界希望\"]\n    },\n    {\n      \"name\": \"墨渊\", \n      \"status\": \"血煞殿太子转型中\",\n      \"arcProgression\":[\"弑父夺权者→质疑魔道者→正邪平衡探索者\"] \n    },\n    {\n      \"name\": \"素问仙子\", \n      \"status\": \"灵魂状态封印中\", \n      \"arcProgression\":[\"医修圣女→阵列守护者→指引导师\"] \n    }\n  ],\n  \"initialFactions\":[\n    {\n      \"factionName\":\"青云宗（正道）\", \n      \"powerLevel\":\"金丹期为主，元婴长老坐镇\", \n      \"coreIdeology\":\"维护传统修行秩序，保护弱小生灵\"},\n    \n    {\n      \"factionName\":\"血煞殿（魔道）\", \n      “powerLevel”:”合体期为主，大乘期隐匿”, \n      “coreIdeology”:”弱肉强食的丛林法则，追求绝对力量”},\n    \n    {\n      “factionName”: “幽冥宗（神秘势力）”, \n      “powerLevel”: “渡劫期掌控者”, \n      “coreIdeology”: ”超越善恶的终极真理追寻者”}\n  ]\n}\n```",
-  "title": "解析失败",
-  "genre": "未知"
+  "title": "冰魄惊魂",
+  "genre": "仙侠，道士，僵尸",
+  "volumes": [
+    {
+      "volume_id": 1,
+      "volume_title": "惊蛰-死士",
+      "theme": "从王族残余到道门弃徒的蜕变",
+      "chapter_count": 2,
+      "events": "在青云宗的危机中，百里长风卷入仇敌的轮回阵禁；林逸风发现师尊隐瞒真相；僵王苏醒于百年前的轮回之势初现。",
+      "character_arcs": "百里长风从被迫的怨恨者，到直面前朝皇族的悲剧主角；林逸风从对师尊的信任到发现真相后的挣扎；僵王从被控制的杀戮工具到觉醒僵尸本能的初步觉醒。"
+    }
+  ],
+  "main_conflict": "道门祖法与前朝皇族的法则之争",
+  "ending_direction": "以一场在轮回阵中的决定性战斗，确定僵王的终局与百里长风的结局。",
+  "foreshadowing_plan": {
+    "chapter_1": "通过林逸风寻找前朝宝物的线索，暗示百里长风旧日的身份",
+    "chapter_2": "通过百里长风与前朝皇族相关弟子的对话，埋下轮回阵的伏笔",
+    "chapter_3": "通过百里长风的梦境，暗示前朝皇族的悲剧"
+  },
+  "world_setting_summary": "",
+  "initial_characters": [],
+  "initial_factions": []
 }

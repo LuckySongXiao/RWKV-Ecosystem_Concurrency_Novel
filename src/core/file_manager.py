@@ -90,6 +90,14 @@ class FileManager:
         return ""
 
     # ---- Output paths ----
+    def get_output_dir(self) -> str:
+        """获取输出目录路径"""
+        return self.output_dir
+
+    def get_draft_dir(self) -> str:
+        """获取草稿目录路径"""
+        return os.path.join(self.output_dir, "draft")
+
     def outline_path(self) -> str:
         return os.path.join(self.output_dir, "outline.json")
 

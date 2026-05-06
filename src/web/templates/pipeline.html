@@ -3,30 +3,53 @@
 <head>
     <meta charset="UTF-8">
     <title>管线控制 - RWKV 小说共创</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+    <script src="/static/js/global-state.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Microsoft YaHei', sans-serif; background: #0a0a1a; color: #e0e0e0; }
-        .nav { display: flex; background: #1a1a2e; padding: 12px 24px; gap: 24px; border-bottom: 1px solid #333; }
-        .nav a { color: #7b8cff; text-decoration: none; font-size: 15px; padding: 6px 12px; border-radius: 6px; }
-        .nav a:hover { background: #2a2a4e; }
-        .container { max-width: 900px; margin: 0 auto; padding: 24px; }
-        h1 { font-size: 24px; color: #7b8cff; margin-bottom: 16px; }
-        .card { background: #1a1a2e; border: 1px solid #333; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
-        .btn { background: #7b8cff; color: #fff; border: none; padding: 10px 24px; border-radius: 6px; cursor: pointer; font-size: 14px; margin: 4px; }
+        body { font-family: 'Microsoft YaHei', sans-serif; background: #0a0a1a; color: #e0e0e0; min-height: 100vh; }
+        .nav { display: flex; background: #1a1a2e; padding: 12px 24px; gap: 8px; border-bottom: 1px solid #333; flex-wrap: wrap; }
+        .nav a { color: #7b8cff; text-decoration: none; font-size: 14px; padding: 8px 16px; border-radius: 6px; transition: all .2s; }
+        .nav a:hover, .nav a.active { background: #2a2a4e; color: #a0a8ff; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 24px; }
+        h1 { font-size: 24px; color: #7b8cff; margin-bottom: 20px; }
+        h2 { font-size: 18px; color: #a0a8ff; margin: 16px 0 12px; }
+        .card { background: #1a1a2e; border: 1px solid #333; border-radius: 8px; padding: 20px; margin-bottom: 16px; }
+        .btn { background: #7b8cff; color: #fff; border: none; padding: 10px 24px; border-radius: 6px; cursor: pointer; font-size: 14px; transition: all .2s; margin: 4px; }
         .btn:hover { background: #5a6cff; }
         .btn.danger { background: #ff4757; }
         .btn.success { background: #2ed573; }
-        #log { background: #0d0d1a; border: 1px solid #333; border-radius: 6px; padding: 12px; font-family: monospace; font-size: 13px; height: 400px; overflow-y: auto; white-space: pre-wrap; }
-        .status { font-size: 18px; margin: 12px 0; }
-        .status.running { color: #2ed573; }
-        .status.paused { color: #ffa502; }
-        .status.completed { color: #7b8cff; }
+        .btn.warn { background: #ffa502; color: #1a1a2e; }
+        #log { background: #0d0d1a; border: 1px solid #333; border-radius: 6px; padding: 16px; font-family: 'Consolas', 'Microsoft YaHei', monospace; font-size: 13px; height: 500px; overflow-y: auto; white-space: pre-wrap; line-height: 1.6; }
+        .status { font-size: 18px; margin: 12px 0; padding: 12px 16px; background: #16213e; border-radius: 6px; }
+        .status.running { color: #2ed573; border-left: 4px solid #2ed573; }
+        .status.paused { color: #ffa502; border-left: 4px solid #ffa502; }
+        .status.completed { color: #7b8cff; border-left: 4px solid #7b8cff; }
+        .status.error { color: #ff4757; border-left: 4px solid #ff4757; }
+        .pipeline-stages { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 16px 0; }
+        .stage { background: #16213e; border: 1px solid #333; border-radius: 6px; padding: 12px; text-align: center; font-size: 13px; }
+        .stage.active { border-color: #2ed573; background: #1a3a2a; }
+        .stage.current { border-color: #ffa502; background: #3a2a1a; }
+        .stage-label { color: #888; margin-bottom: 4px; }
+        .stage-name { color: #a0a8ff; font-weight: bold; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin: 16px 0; }
+        .stat-card { background: #16213e; border: 1px solid #333; border-radius: 6px; padding: 16px; }
+        .stat-label { color: #888; font-size: 12px; margin-bottom: 8px; }
+        .stat-value { color: #2ed573; font-size: 24px; font-weight: bold; }
+        .stat-value.warning { color: #ffa502; }
+        .stat-value.error { color: #ff4757; }
+        .progress-bar { background: #0d0d1a; border-radius: 4px; height: 8px; margin-top: 8px; overflow: hidden; }
+        .progress-fill { background: linear-gradient(90deg, #7b8cff, #2ed573); height: 100%; transition: width 0.3s; }
+        .conflict-alert { background: #3a1a1a; border: 1px solid #ff4757; border-radius: 6px; padding: 12px; margin: 12px 0; color: #ff6b6b; }
+        .approval-pending { background: #3a2a1a; border: 1px solid #ffa502; border-radius: 6px; padding: 12px; margin: 12px 0; color: #ffa502; }
     </style>
 </head>
 <body>
     <nav class="nav">
         <a href="/">首页</a>
+        <a href="/create">小说创作</a>
         <a href="/pipeline" style="background:#2a2a4e">管线控制</a>
+        <a href="/matrix">章节并发矩阵</a>
         <a href="/world">世界状态</a>
         <a href="/roleplay">角色扮演</a>
         <a href="/review">审核裁决</a>
@@ -35,15 +58,115 @@
         <h1>管线控制</h1>
         <div class="card">
             <div class="status" id="pipeline-status">状态: 未知</div>
-            <button class="btn success" onclick="startPipeline()">启动管线</button>
-            <button class="btn" onclick="resumePipeline()">断点恢复</button>
+            <div style="margin-top: 12px">
+                <button class="btn success" onclick="startPipeline()">启动管线</button>
+                <button class="btn" onclick="resumePipeline()">断点恢复</button>
+            </div>
         </div>
         <div class="card">
-            <h2 style="color:#a0a8ff;margin-bottom:8px">管线日志</h2>
+            <h2>优化版全自动管线</h2>
+            <p style="color:#aaa; font-size:13px; margin-bottom:16px;">支持角色批量生成、剧情线路、大纲拆分、章节切片并发写作的全自动管线</p>
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:12px; margin-bottom:16px;">
+                <div>
+                    <label style="color:#a0a8ff; font-size:13px; display:block; margin-bottom:6px;">小说主题</label>
+                    <input type="text" id="opt-theme" value="仙侠" style="width:100%; background:#0d0d1a; border:1px solid #333; color:#e0e0e0; padding:8px 12px; border-radius:6px; font-size:14px;">
+                </div>
+                <div>
+                    <label style="color:#a0a8ff; font-size:13px; display:block; margin-bottom:6px;">角色数量</label>
+                    <input type="number" id="opt-char-count" value="6" min="2" max="30" style="width:100%; background:#0d0d1a; border:1px solid #333; color:#e0e0e0; padding:8px 12px; border-radius:6px; font-size:14px;">
+                </div>
+                <div>
+                    <label style="color:#a0a8ff; font-size:13px; display:block; margin-bottom:6px;">卷宗数量</label>
+                    <input type="number" id="opt-volume-count" value="3" min="1" max="20" style="width:100%; background:#0d0d1a; border:1px solid #333; color:#e0e0e0; padding:8px 12px; border-radius:6px; font-size:14px;">
+                </div>
+                <div>
+                    <label style="color:#a0a8ff; font-size:13px; display:block; margin-bottom:6px;">每卷章节数</label>
+                    <input type="number" id="opt-chapters-per-vol" value="5" min="1" max="50" style="width:100%; background:#0d0d1a; border:1px solid #333; color:#e0e0e0; padding:8px 12px; border-radius:6px; font-size:14px;">
+                </div>
+                <div>
+                    <label style="color:#a0a8ff; font-size:13px; display:block; margin-bottom:6px;">章节切片数</label>
+                    <input type="number" id="opt-slices-per-ch" value="20" min="4" max="40" style="width:100%; background:#0d0d1a; border:1px solid #333; color:#e0e0e0; padding:8px 12px; border-radius:6px; font-size:14px;">
+                </div>
+            </div>
+            <div style="margin-bottom:16px;">
+                <label style="color:#a0a8ff; font-size:13px; display:block; margin-bottom:6px;">主角名称（逗号分隔）</label>
+                <input type="text" id="opt-protagonists" placeholder="例如: 叶凡,林黛玉" style="width:100%; background:#0d0d1a; border:1px solid #333; color:#e0e0e0; padding:8px 12px; border-radius:6px; font-size:14px;">
+            </div>
+            <div style="display:flex; gap:8px; align-items:center;">
+                <button class="btn success" onclick="startOptimizedPipeline()">启动优化管线</button>
+                <a href="/matrix" class="btn" style="text-decoration:none;">查看矩阵视图</a>
+                <span id="opt-pipeline-status" style="color:#888; font-size:13px; margin-left:8px;"></span>
+            </div>
+        </div>
+        <div class="card">
+            <h2>管线阶段</h2>
+            <div class="pipeline-stages">
+                <div class="stage" id="stage-macro">
+                    <div class="stage-label">阶段 1</div>
+                    <div class="stage-name">宏观规划</div>
+                </div>
+                <div class="stage" id="stage-outline">
+                    <div class="stage-label">阶段 2</div>
+                    <div class="stage-name">大纲生成</div>
+                </div>
+                <div class="stage" id="stage-chapters">
+                    <div class="stage-label">阶段 3</div>
+                    <div class="stage-name">章节创作</div>
+                </div>
+                <div class="stage" id="stage-state">
+                    <div class="stage-label">阶段 4</div>
+                    <div class="stage-name">状态结算</div>
+                </div>
+                <div class="stage" id="stage-review">
+                    <div class="stage-label">阶段 5</div>
+                    <div class="stage-name">质量审核</div>
+                </div>
+                <div class="stage" id="stage-final">
+                    <div class="stage-label">阶段 6</div>
+                    <div class="stage-name">最终成书</div>
+                </div>
+            </div>
+        </div>
+        <div class="card">
+            <h2>实时统计</h2>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">已生成章节</div>
+                    <div class="stat-value" id="stat-chapters">0</div>
+                    <div class="progress-bar"><div class="progress-fill" id="progress-chapters" style="width: 0%"></div></div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">角色数量</div>
+                    <div class="stat-value" id="stat-characters">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">势力数量</div>
+                    <div class="stat-value" id="stat-factions">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">待处理冲突</div>
+                    <div class="stat-value warning" id="stat-conflicts">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">待审批项</div>
+                    <div class="stat-value warning" id="stat-approvals">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">管线运行时间</div>
+                    <div class="stat-value" id="stat-runtime">--:--:--</div>
+                </div>
+            </div>
+            <div id="alerts-container"></div>
+        </div>
+        <div class="card">
+            <h2>管线日志</h2>
             <div id="log">等待管线启动...</div>
         </div>
     </div>
     <script>
+        let pipelineStartTime = null;
+        let totalChapters = 0;
+
         function addLog(msg) {
             const el = document.getElementById('log');
             el.textContent += new Date().toLocaleTimeString() + ' ' + msg + '\n';
@@ -54,6 +177,9 @@
             const r = await fetch('/api/pipeline/start', {method:'POST'});
             const d = await r.json();
             addLog('[启动] ' + d.status);
+            if (d.status === 'started') {
+                pipelineStartTime = Date.now();
+            }
         }
         async function resumePipeline() {
             addLog('[恢复] 正在从断点恢复...');
@@ -68,10 +194,172 @@
                 const el = document.getElementById('pipeline-status');
                 el.textContent = '状态: ' + d.state;
                 el.className = 'status ' + d.state;
+                updateStages(d.state);
+                updateStats(d);
             } catch(e) {}
+        }
+        function updateStages(state) {
+            document.querySelectorAll('.stage').forEach(s => {
+                s.classList.remove('active', 'current');
+            });
+            const stageMap = {
+                'macro_planning': 'stage-macro',
+                'outline_gen': 'stage-outline',
+                'volume_gen': 'stage-outline',
+                'chapter_outline': 'stage-chapters',
+                'chapter_content': 'stage-chapters',
+                'state_settlement': 'stage-state',
+                'review': 'stage-review',
+                'final': 'stage-final',
+                'completed': 'stage-final',
+            };
+            const completedStages = ['macro_planning', 'outline_gen', 'volume_gen', 'chapter_outline', 'chapter_content', 'state_settlement', 'review', 'final', 'completed'];
+            const currentIndex = completedStages.indexOf(state);
+            for (let i = 0; i < currentIndex && i < completedStages.length; i++) {
+                const stageId = stageMap[completedStages[i]];
+                if (stageId) document.getElementById(stageId)?.classList.add('active');
+            }
+            if (currentIndex >= 0) {
+                const currentStageId = stageMap[state];
+                if (currentStageId) document.getElementById(currentStageId)?.classList.add('current');
+            }
+        }
+        function updateStats(data) {
+            if (data.world_status) {
+                const ws = data.world_status;
+                document.getElementById('stat-characters').textContent = ws.character_count || 0;
+                document.getElementById('stat-factions').textContent = ws.faction_count || 0;
+                document.getElementById('stat-chapters').textContent = ws.chapter_count || 0;
+                if (totalChapters > 0) {
+                    const pct = Math.round((ws.chapter_count || 0) / totalChapters * 100);
+                    document.getElementById('progress-chapters').style.width = pct + '%';
+                }
+            }
+            if (data.pending_approvals) {
+                document.getElementById('stat-approvals').textContent = data.pending_approvals.length || 0;
+            }
+            if (data.unresolved_conflicts) {
+                document.getElementById('stat-conflicts').textContent = data.unresolved_conflicts.length || 0;
+            }
+            if (pipelineStartTime) {
+                const elapsed = Math.floor((Date.now() - pipelineStartTime) / 1000);
+                const hours = Math.floor(elapsed / 3600).toString().padStart(2, '0');
+                const minutes = Math.floor((elapsed % 3600) / 60).toString().padStart(2, '0');
+                const seconds = (elapsed % 60).toString().padStart(2, '0');
+                document.getElementById('stat-runtime').textContent = `${hours}:${minutes}:${seconds}`;
+            }
+            updateAlerts(data);
+        }
+        function updateAlerts(data) {
+            const container = document.getElementById('alerts-container');
+            container.innerHTML = '';
+            if (data.pending_approvals && data.pending_approvals.length > 0) {
+                const alert = document.createElement('div');
+                alert.className = 'approval-pending';
+                alert.innerHTML = `⚠️ 有 ${data.pending_approvals.length} 个待审批项需要处理`;
+                container.appendChild(alert);
+            }
+            if (data.unresolved_conflicts && data.unresolved_conflicts.length > 0) {
+                const alert = document.createElement('div');
+                alert.className = 'conflict-alert';
+                alert.innerHTML = `🚨 有 ${data.unresolved_conflicts.length} 个未解决冲突`;
+                container.appendChild(alert);
+            }
+        }
+        async function loadChapterCount() {
+            try {
+                const r = await fetch('/api/world/chapters/count');
+                const d = await r.json();
+                totalChapters = d.count || 0;
+            } catch(e) {}
+        }
+        async function startOptimizedPipeline() {
+            const theme = document.getElementById('opt-theme').value.trim();
+            const charCount = parseInt(document.getElementById('opt-char-count').value) || 6;
+            const volumeCount = parseInt(document.getElementById('opt-volume-count').value) || 3;
+            const chaptersPerVol = parseInt(document.getElementById('opt-chapters-per-vol').value) || 5;
+            const slicesPerCh = parseInt(document.getElementById('opt-slices-per-ch').value) || 20;
+            const protagonists = document.getElementById('opt-protagonists').value.trim();
+
+            const statusEl = document.getElementById('opt-pipeline-status');
+            statusEl.textContent = '启动中（自动启动模型服务）...';
+            statusEl.style.color = '#ffa502';
+
+            addLog('[优化管线] 正在启动优化版全自动管线...');
+
+            try {
+                const r = await fetch('/api/pipeline/optimized', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        theme: theme,
+                        character_count: charCount,
+                        volume_count: volumeCount,
+                        chapters_per_volume: chaptersPerVol,
+                        slices_per_chapter: slicesPerCh,
+                        concurrency_config: {
+                            character_concurrency: charCount,
+                            outline_concurrency: chaptersPerVol,
+                            chapter_concurrency: 4,
+                            batch_size: 8,
+                        },
+                        protagonist_names: protagonists ? protagonists.split(/[,，]/).map(s => s.trim()).filter(Boolean) : [],
+                    }),
+                });
+                const d = await r.json();
+                if (d.status === 'started') {
+                    statusEl.textContent = '已启动，请在矩阵视图中查看进度';
+                    statusEl.style.color = '#2ed573';
+                    addLog('[优化管线] 管线已启动: ' + (d.message || ''));
+                    pipelineStartTime = Date.now();
+                } else {
+                    statusEl.textContent = '启动失败: ' + (d.error || d.message || '未知错误');
+                    statusEl.style.color = '#ff4757';
+                    addLog('[优化管线] 启动失败: ' + (d.error || d.message || ''));
+                }
+            } catch(e) {
+                statusEl.textContent = '请求失败: ' + e.message;
+                statusEl.style.color = '#ff4757';
+                addLog('[优化管线] 请求异常: ' + e.message);
+            }
         }
         setInterval(pollStatus, 2000);
         pollStatus();
+        loadChapterCount();
+
+        const pipelineSocket = io(location.host, { transports: ['websocket'], reconnection: true, reconnectionDelay: 3000 });
+        pipelineSocket.on('progress_update', (data) => {
+            const statusEl = document.getElementById('opt-pipeline-status');
+            if (data.status === 'running' || data.status === 'started') {
+                const pct = data.total_tasks > 0 ? Math.round((data.completed_tasks || 0) / data.total_tasks * 100) : 0;
+                if (statusEl) {
+                    statusEl.textContent = `${data.current_stage || '运行中'} (${pct}%)`;
+                    statusEl.style.color = '#2ed573';
+                }
+                addLog(`[管线进度] ${data.current_stage || '运行中'} - ${data.completed_tasks || 0}/${data.total_tasks || 0}`);
+            } else if (data.status === 'completed') {
+                if (statusEl) {
+                    statusEl.textContent = '管线已完成!';
+                    statusEl.style.color = '#2ed573';
+                }
+                addLog('[管线进度] 管线执行完成!');
+            } else if (data.status === 'failed') {
+                if (statusEl) {
+                    statusEl.textContent = '管线失败: ' + (data.error || '');
+                    statusEl.style.color = '#ff4757';
+                }
+                addLog('[管线进度] 管线失败: ' + (data.error || '未知错误'));
+            }
+        });
+
+        globalState.connect();
+        globalState.syncFormInputs({
+            'character_count': 'opt-char-count',
+            'volume_count': 'opt-volume-count',
+            'chapters_per_volume': 'opt-chapters-per-vol',
+            'slices_per_chapter': 'opt-slices-per-ch',
+        });
+        globalState.syncPipelineStatus('opt-pipeline-status', null, null);
     </script>
 </body>
 </html>

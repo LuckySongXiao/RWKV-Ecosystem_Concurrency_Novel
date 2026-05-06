@@ -3,104 +3,623 @@
 <head>
     <meta charset="UTF-8">
     <title>世界状态 - RWKV 小说共创</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Microsoft YaHei', sans-serif; background: #0a0a1a; color: #e0e0e0; }
-        .nav { display: flex; background: #1a1a2e; padding: 12px 24px; gap: 24px; border-bottom: 1px solid #333; }
-        .nav a { color: #7b8cff; text-decoration: none; font-size: 15px; padding: 6px 12px; border-radius: 6px; }
-        .nav a:hover { background: #2a2a4e; }
-        .container { max-width: 1100px; margin: 0 auto; padding: 24px; }
-        h1 { font-size: 24px; color: #7b8cff; margin-bottom: 16px; }
-        h2 { font-size: 18px; color: #a0a8ff; margin: 16px 0 8px; }
-        .card { background: #1a1a2e; border: 1px solid #333; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+        body { font-family: 'Microsoft YaHei', sans-serif; background: #0a0a1a; color: #e0e0e0; min-height: 100vh; }
+        .nav { display: flex; background: #1a1a2e; padding: 12px 24px; gap: 8px; border-bottom: 1px solid #333; flex-wrap: wrap; }
+        .nav a { color: #7b8cff; text-decoration: none; font-size: 14px; padding: 8px 16px; border-radius: 6px; transition: all .2s; }
+        .nav a:hover, .nav a.active { background: #2a2a4e; color: #a0a8ff; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 24px; }
+        h1 { font-size: 24px; color: #7b8cff; margin-bottom: 20px; }
+        h2 { font-size: 18px; color: #a0a8ff; margin: 16px 0 12px; }
+        h3 { font-size: 15px; color: #7b8cff; margin: 12px 0 8px; }
+        .card { background: #1a1a2e; border: 1px solid #333; border-radius: 8px; padding: 20px; margin-bottom: 16px; }
         table { width: 100%; border-collapse: collapse; }
-        th, td { padding: 8px 12px; text-align: left; border-bottom: 1px solid #333; font-size: 13px; }
-        th { color: #7b8cff; background: #16213e; }
+        th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #333; font-size: 13px; }
+        th { color: #7b8cff; background: #16213e; font-weight: bold; }
         tr:hover { background: #1e1e3a; }
-        .tag { display: inline-block; background: #2a2a4e; color: #7b8cff; padding: 2px 8px; border-radius: 4px; font-size: 12px; margin: 2px; }
-        .tag.planted { background: #2a4a2e; color: #2ed573; }
-        .tag.resolved { background: #4a4a2e; color: #ffa502; }
-        .tabs { display: flex; gap: 8px; margin-bottom: 16px; }
-        .tab { padding: 8px 16px; background: #1a1a2e; border: 1px solid #333; border-radius: 6px; cursor: pointer; color: #888; }
+        .tag { display: inline-block; background: #2a2a4e; color: #7b8cff; padding: 3px 10px; border-radius: 4px; font-size: 12px; margin: 2px; }
+        .tag.planted { background: #1a3a2a; color: #2ed573; }
+        .tag.resolved { background: #3a3a1a; color: #ffa502; }
+        .tag.conflict { background: #3a1a1a; color: #ff4757; }
+        .tag.alive { background: #1a3a2a; color: #2ed573; }
+        .tag.dead { background: #3a1a1a; color: #ff4757; }
+        .tag.injured { background: #3a3a1a; color: #ffa502; }
+        .tag.active { background: #1a3a2a; color: #2ed573; }
+        .tag.dissolved { background: #3a1a1a; color: #ff4757; }
+        .tabs { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+        .tab { padding: 10px 20px; background: #1a1a2e; border: 1px solid #333; border-radius: 6px; cursor: pointer; color: #888; transition: all .2s; font-size: 14px; }
+        .tab:hover { color: #a0a8ff; }
         .tab.active { background: #2a2a4e; color: #7b8cff; border-color: #7b8cff; }
+        .detail-card { background: #16213e; border: 1px solid #333; border-radius: 8px; padding: 16px; margin: 12px 0; }
+        .detail-card h3 { color: #7b8cff; margin-bottom: 8px; font-size: 15px; }
+        .detail-card p { color: #aaa; font-size: 13px; line-height: 1.6; margin: 4px 0; }
+        .detail-card .label { color: #888; }
+        .attr-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; margin-top: 8px; }
+        .attr-item { background: #1a1a2e; padding: 8px 12px; border-radius: 4px; }
+        .attr-item .key { color: #888; font-size: 12px; }
+        .attr-item .value { color: #e0e0e0; font-size: 13px; }
+        .empty-state { text-align: center; padding: 40px; color: #666; }
+        .btn { background: #7b8cff; color: #fff; border: none; padding: 8px 18px; border-radius: 6px; cursor: pointer; font-size: 13px; margin: 4px; transition: all .2s; }
+        .btn:hover { background: #5a6cff; }
+        .btn.sm { padding: 5px 12px; font-size: 12px; }
+        .btn.success { background: #2ed573; color: #000; }
+        .btn.warn { background: #ffa502; color: #1a1a2e; }
+        .btn.danger { background: #ff4757; }
+
+        .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 20px; }
+        .stat-card { background: #16213e; border: 1px solid #333; border-radius: 8px; padding: 14px; text-align: center; }
+        .stat-card .num { font-size: 28px; color: #7b8cff; font-weight: bold; }
+        .stat-card .label { font-size: 12px; color: #888; margin-top: 4px; }
+
+        .relation-graph { background: #0d0d1a; border: 1px solid #333; border-radius: 8px; padding: 16px; min-height: 300px; position: relative; overflow: hidden; }
+        .relation-node { position: absolute; padding: 8px 14px; border-radius: 20px; font-size: 12px; cursor: pointer; transition: all .2s; z-index: 2; }
+        .relation-node.protagonist { background: #1a3a2a; border: 2px solid #2ed573; color: #2ed573; }
+        .relation-node.antagonist { background: #3a1a1a; border: 2px solid #ff4757; color: #ff4757; }
+        .relation-node.supporting { background: #2a2a4e; border: 2px solid #7b8cff; color: #7b8cff; }
+        .relation-node:hover { transform: scale(1.1); z-index: 3; }
+        .relation-line { position: absolute; z-index: 1; }
+        .relation-label { position: absolute; font-size: 10px; color: #888; background: #0d0d1a; padding: 1px 4px; z-index: 3; }
+
+        .foreshadow-timeline { position: relative; padding-left: 30px; }
+        .foreshadow-timeline::before { content: ''; position: absolute; left: 14px; top: 0; bottom: 0; width: 2px; background: #333; }
+        .foreshadow-item { position: relative; margin-bottom: 16px; padding: 12px 16px; background: #16213e; border: 1px solid #333; border-radius: 8px; }
+        .foreshadow-item::before { content: ''; position: absolute; left: -22px; top: 16px; width: 10px; height: 10px; border-radius: 50%; border: 2px solid; }
+        .foreshadow-item.planted::before { border-color: #2ed573; background: #1a3a2a; }
+        .foreshadow-item.resolved::before { border-color: #ffa502; background: #3a3a1a; }
+        .foreshadow-item.overdue::before { border-color: #ff4757; background: #3a1a1a; animation: blink 1.5s infinite; }
+        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.4} }
+        .foreshadow-meta { display: flex; gap: 12px; margin-top: 8px; flex-wrap: wrap; }
+        .foreshadow-meta-item { font-size: 12px; color: #888; }
+        .foreshadow-meta-item span { color: #e0e0e0; }
+
+        .economy-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+        .economy-card { background: #16213e; border: 1px solid #333; border-radius: 8px; padding: 16px; }
+        .economy-card h4 { color: #a0a8ff; font-size: 14px; margin-bottom: 8px; }
+        .economy-bar { height: 6px; background: #333; border-radius: 3px; margin-top: 4px; overflow: hidden; }
+        .economy-bar-fill { height: 100%; border-radius: 3px; transition: width .5s; }
+        .economy-bar-fill.high { background: #2ed573; }
+        .economy-bar-fill.medium { background: #ffa502; }
+        .economy-bar-fill.low { background: #ff4757; }
+        .economy-value { font-size: 13px; color: #e0e0e0; margin-top: 2px; }
+
+        .search-box { display: flex; gap: 8px; margin-bottom: 16px; }
+        .search-input { flex: 1; background: #0a0a15; border: 1px solid #333; color: #e0e0e0; padding: 10px 14px; border-radius: 6px; font-size: 14px; }
+        .search-input:focus { border-color: #7b8cff; outline: none; }
+        .filter-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+        .filter-chip { padding: 4px 12px; background: #1a1a2e; border: 1px solid #333; border-radius: 12px; font-size: 12px; color: #888; cursor: pointer; transition: all .2s; }
+        .filter-chip:hover { border-color: #7b8cff; color: #7b8cff; }
+        .filter-chip.active { background: #2a2a4e; border-color: #7b8cff; color: #7b8cff; }
+
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1000; justify-content: center; align-items: center; }
+        .modal-overlay.active { display: flex; }
+        .modal { background: #1a1a2e; border: 1px solid #333; border-radius: 12px; padding: 24px; max-width: 700px; width: 90%; max-height: 80vh; overflow-y: auto; }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+        .modal-title { color: #a0a8ff; font-size: 18px; font-weight: bold; }
+        .modal-close { background: none; border: none; color: #888; font-size: 24px; cursor: pointer; }
+        .modal-close:hover { color: #ff4757; }
     </style>
 </head>
 <body>
     <nav class="nav">
         <a href="/">首页</a>
+        <a href="/create">小说创作</a>
         <a href="/pipeline">管线控制</a>
+        <a href="/matrix">章节并发矩阵</a>
         <a href="/world" style="background:#2a2a4e">世界状态</a>
         <a href="/roleplay">角色扮演</a>
         <a href="/review">审核裁决</a>
     </nav>
     <div class="container">
-        <h1>世界状态</h1>
+        <h1>🌍 世界状态</h1>
+
+        <div class="stats-row">
+            <div class="stat-card">
+                <div class="num" id="stat-chars">0</div>
+                <div class="label">角色</div>
+            </div>
+            <div class="stat-card">
+                <div class="num" id="stat-factions">0</div>
+                <div class="label">势力</div>
+            </div>
+            <div class="stat-card">
+                <div class="num" id="stat-foreshadow-planted">0</div>
+                <div class="label">待回收伏笔</div>
+            </div>
+            <div class="stat-card">
+                <div class="num" id="stat-foreshadow-resolved">0</div>
+                <div class="label">已回收伏笔</div>
+            </div>
+            <div class="stat-card">
+                <div class="num" id="stat-conflicts">0</div>
+                <div class="label">未解决冲突</div>
+            </div>
+        </div>
+
         <div class="tabs">
             <div class="tab active" onclick="switchTab('characters')">角色</div>
+            <div class="tab" onclick="switchTab('relations')">关系图谱</div>
             <div class="tab" onclick="switchTab('factions')">势力</div>
             <div class="tab" onclick="switchTab('economy')">经济</div>
-            <div class="tab" onclick="switchTab('foreshadowings')">伏笔</div>
+            <div class="tab" onclick="switchTab('foreshadowings')">伏笔追踪</div>
             <div class="tab" onclick="switchTab('timeline')">时间线</div>
         </div>
         <div id="content" class="card">加载中...</div>
     </div>
+
+    <div class="modal-overlay" id="detail-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <span class="modal-title" id="modal-title">详情</span>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+            <div id="modal-body"></div>
+        </div>
+    </div>
+
     <script>
         let currentTab = 'characters';
+        let allCharacters = [];
+        let allFactions = [];
+        let allForeshadowings = [];
+        let allTimeline = [];
+        let economyData = {};
+
         function switchTab(tab) {
             currentTab = tab;
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
             event.target.classList.add('active');
             loadTab();
         }
+
+        async function loadAllData() {
+            try {
+                const [charsR, factionsR, foreshadowR, timelineR, economyR, conflictsR] = await Promise.all([
+                    fetch('/api/world/characters').then(r => r.json()),
+                    fetch('/api/world/factions').then(r => r.json()),
+                    fetch('/api/world/foreshadowings').then(r => r.json()),
+                    fetch('/api/world/timeline').then(r => r.json()),
+                    fetch('/api/world/economy').then(r => r.json()),
+                    fetch('/api/status').then(r => r.json()).then(d => d.unresolved_conflicts || []),
+                ]);
+                allCharacters = charsR;
+                allFactions = factionsR;
+                allForeshadowings = foreshadowR;
+                allTimeline = timelineR;
+                economyData = economyR;
+
+                const planted = foreshadowR.filter(f => f.status === 'planted').length;
+                const resolved = foreshadowR.filter(f => f.status === 'resolved').length;
+                document.getElementById('stat-chars').textContent = charsR.length;
+                document.getElementById('stat-factions').textContent = factionsR.length;
+                document.getElementById('stat-foreshadow-planted').textContent = planted;
+                document.getElementById('stat-foreshadow-resolved').textContent = resolved;
+                document.getElementById('stat-conflicts').textContent = conflictsR.length || 0;
+            } catch(e) {
+                console.error('加载数据失败:', e);
+            }
+        }
+
         async function loadTab() {
             const el = document.getElementById('content');
             try {
                 if (currentTab === 'characters') {
-                    const r = await fetch('/api/world/characters');
-                    const data = await r.json();
-                    let html = '<table><tr><th>ID</th><th>名称</th><th>位置</th><th>状态</th><th>属性</th></tr>';
-                    data.forEach(c => {
-                        const attrs = Object.entries(c.attributes || {}).map(([k,v]) => `${k}=${v}`).join(', ');
-                        html += `<tr><td>${c.character_id}</td><td>${c.name}</td><td>${c.location}</td><td><span class="tag">${c.status}</span></td><td>${attrs}</td></tr>`;
-                    });
-                    html += '</table>';
-                    el.innerHTML = html;
+                    renderCharacters(el);
+                } else if (currentTab === 'relations') {
+                    renderRelations(el);
                 } else if (currentTab === 'factions') {
-                    const r = await fetch('/api/world/factions');
-                    const data = await r.json();
-                    let html = '<table><tr><th>ID</th><th>名称</th><th>成员</th><th>领地</th></tr>';
-                    data.forEach(f => {
-                        html += `<tr><td>${f.faction_id}</td><td>${f.name}</td><td>${(f.members||[]).join(', ')}</td><td>${f.territory}</td></tr>`;
-                    });
-                    html += '</table>';
-                    el.innerHTML = html;
+                    renderFactions(el);
                 } else if (currentTab === 'economy') {
-                    const r = await fetch('/api/world/economy');
-                    const data = await r.json();
-                    el.innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+                    renderEconomy(el);
                 } else if (currentTab === 'foreshadowings') {
-                    const r = await fetch('/api/world/foreshadowings');
-                    const data = await r.json();
-                    let html = '<table><tr><th>ID</th><th>描述</th><th>状态</th><th>埋设章节</th><th>预计回收</th></tr>';
-                    data.forEach(f => {
-                        html += `<tr><td>${f.id}</td><td>${f.description}</td><td><span class="tag ${f.status}">${f.status}</span></td><td>${f.planted_at}</td><td>${f.expected_resolve}</td></tr>`;
-                    });
-                    html += '</table>';
-                    el.innerHTML = html;
+                    renderForeshadowings(el);
                 } else if (currentTab === 'timeline') {
-                    const r = await fetch('/api/world/timeline');
-                    const data = await r.json();
-                    let html = '<table><tr><th>章节</th><th>事件</th><th>时间</th></tr>';
-                    data.forEach(e => {
-                        html += `<tr><td>${e.chapter_id}</td><td>${e.event}</td><td>${e.timestamp || ''}</td></tr>`;
-                    });
-                    html += '</table>';
-                    el.innerHTML = html;
+                    renderTimeline(el);
                 }
-            } catch(e) { el.innerHTML = '加载失败: ' + e; }
+            } catch(e) {
+                el.innerHTML = '<div class="empty-state">加载失败: ' + e + '</div>';
+            }
         }
-        loadTab();
-        setInterval(loadTab, 10000);
+
+        function renderCharacters(el) {
+            if (!allCharacters.length) {
+                el.innerHTML = '<div class="empty-state">暂无角色数据。请先在"小说创作"页面编写设定并启动管线。</div>';
+                return;
+            }
+
+            let html = '<div class="search-box">';
+            html += '<input type="text" class="search-input" id="char-search" placeholder="搜索角色名称..." oninput="filterCharacters()">';
+            html += '</div>';
+            html += '<div class="filter-chips">';
+            html += '<span class="filter-chip active" onclick="filterByRole(this, \'all\')">全部</span>';
+            html += '<span class="filter-chip" onclick="filterByRole(this, \'protagonist\')">主角</span>';
+            html += '<span class="filter-chip" onclick="filterByRole(this, \'antagonist\')">反派</span>';
+            html += '<span class="filter-chip" onclick="filterByRole(this, \'supporting\')">配角</span>';
+            html += '</div>';
+            html += '<table id="char-table"><thead><tr><th>ID</th><th>名称</th><th>位置</th><th>状态</th><th>属性</th><th>操作</th></tr></thead><tbody>';
+            allCharacters.forEach(c => {
+                const attrs = Object.entries(c.attributes || {}).slice(0, 4).map(([k,v]) => `<span class="tag">${k}: ${v}</span>`).join(' ');
+                const statusClass = c.status === 'alive' ? 'alive' : c.status === 'dead' ? 'dead' : 'injured';
+                const roleType = (c.attributes || {}).role_type || 'supporting';
+                html += `<tr data-role="${roleType}" data-name="${c.name}">`;
+                html += `<td><b>${c.character_id}</b></td>`;
+                html += `<td>${c.name}</td>`;
+                html += `<td>${c.location || '-'}</td>`;
+                html += `<td><span class="tag ${statusClass}">${c.status || '未知'}</span></td>`;
+                html += `<td>${attrs || '-'}</td>`;
+                html += `<td><button class="btn sm" onclick="showCharDetail('${c.character_id}')">详情</button></td>`;
+                html += '</tr>';
+            });
+            html += '</tbody></table>';
+            el.innerHTML = html;
+        }
+
+        function filterCharacters() {
+            const query = document.getElementById('char-search').value.toLowerCase();
+            document.querySelectorAll('#char-table tbody tr').forEach(tr => {
+                const name = (tr.dataset.name || '').toLowerCase();
+                tr.style.display = name.includes(query) ? '' : 'none';
+            });
+        }
+
+        function filterByRole(chipEl, role) {
+            document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+            chipEl.classList.add('active');
+            document.querySelectorAll('#char-table tbody tr').forEach(tr => {
+                if (role === 'all') {
+                    tr.style.display = '';
+                } else {
+                    tr.style.display = tr.dataset.role === role ? '' : 'none';
+                }
+            });
+        }
+
+        async function showCharDetail(charId) {
+            try {
+                const r = await fetch('/api/world/entity/' + charId);
+                const data = await r.json();
+                const entity = data.entity || {};
+                const relations = data.relations || [];
+
+                let html = '<div class="detail-card">';
+                html += `<h3>${entity.name || charId}</h3>`;
+                html += `<p><span class="label">ID:</span> ${charId}</p>`;
+                html += `<p><span class="label">位置:</span> ${entity.location || '-'}</p>`;
+                html += `<p><span class="label">状态:</span> <span class="tag ${entity.status === 'alive' ? 'alive' : 'conflict'}">${entity.status || '-'}</span></p>`;
+
+                if (entity.attributes && Object.keys(entity.attributes).length) {
+                    html += '<h3 style="margin-top:16px">属性</h3>';
+                    html += '<div class="attr-grid">';
+                    for (const [k, v] of Object.entries(entity.attributes)) {
+                        html += `<div class="attr-item"><div class="key">${k}</div><div class="value">${v}</div></div>`;
+                    }
+                    html += '</div>';
+                }
+
+                if (relations.length) {
+                    html += '<h3 style="margin-top:16px">关系网络</h3>';
+                    relations.forEach(rel => {
+                        const typeClass = rel.type === 'ally' ? 'planted' : rel.type === 'enemy' ? 'conflict' : '';
+                        html += `<p><span class="tag ${typeClass}">${rel.type}</span> ${rel.target} ${rel.description ? '- ' + rel.description : ''}</p>`;
+                    });
+                }
+
+                html += '</div>';
+                document.getElementById('modal-title').textContent = entity.name || charId;
+                document.getElementById('modal-body').innerHTML = html;
+                document.getElementById('detail-modal').classList.add('active');
+            } catch(e) {
+                console.error('加载详情失败:', e);
+            }
+        }
+
+        function renderRelations(el) {
+            if (!allCharacters.length) {
+                el.innerHTML = '<div class="empty-state">暂无角色数据，无法生成关系图谱。</div>';
+                return;
+            }
+
+            let html = '<h3>角色关系图谱</h3>';
+            html += '<div class="relation-graph" id="relation-graph" style="height:500px">';
+            html += '<div style="text-align:center;padding:40px;color:#666">加载中...</div>';
+            html += '</div>';
+            html += '<div style="margin-top:12px;font-size:12px;color:#666">提示：拖拽节点可调整位置，点击节点查看详情</div>';
+            el.innerHTML = html;
+
+            setTimeout(() => drawRelationGraph(), 100);
+        }
+
+        function drawRelationGraph() {
+            const container = document.getElementById('relation-graph');
+            if (!container) return;
+            container.innerHTML = '';
+
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+            const centerX = width / 2;
+            const centerY = height / 2;
+            const radius = Math.min(width, height) * 0.35;
+
+            const nodes = allCharacters.map((c, i) => {
+                const angle = (2 * Math.PI * i) / allCharacters.length - Math.PI / 2;
+                const roleType = (c.attributes || {}).role_type || 'supporting';
+                return {
+                    id: c.character_id,
+                    name: c.name,
+                    x: centerX + radius * Math.cos(angle),
+                    y: centerY + radius * Math.sin(angle),
+                    role: roleType,
+                };
+            });
+
+            const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            svg.setAttribute('width', width);
+            svg.setAttribute('height', height);
+            svg.style.position = 'absolute';
+            svg.style.top = '0';
+            svg.style.left = '0';
+            container.appendChild(svg);
+
+            nodes.forEach((node, i) => {
+                nodes.forEach((other, j) => {
+                    if (j > i && Math.random() < 0.3) {
+                        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                        line.setAttribute('x1', node.x);
+                        line.setAttribute('y1', node.y);
+                        line.setAttribute('x2', other.x);
+                        line.setAttribute('y2', other.y);
+                        line.setAttribute('stroke', '#333');
+                        line.setAttribute('stroke-width', '1');
+                        line.setAttribute('stroke-dasharray', '4,4');
+                        svg.appendChild(line);
+                    }
+                });
+            });
+
+            nodes.forEach(node => {
+                const div = document.createElement('div');
+                div.className = 'relation-node ' + node.role;
+                div.textContent = node.name;
+                div.style.left = (node.x - 30) + 'px';
+                div.style.top = (node.y - 14) + 'px';
+                div.onclick = () => showCharDetail(node.id);
+
+                let isDragging = false;
+                let offsetX = 0, offsetY = 0;
+                div.onmousedown = (e) => {
+                    isDragging = true;
+                    offsetX = e.clientX - div.offsetLeft;
+                    offsetY = e.clientY - div.offsetTop;
+                    e.preventDefault();
+                };
+                document.addEventListener('mousemove', (e) => {
+                    if (!isDragging) return;
+                    div.style.left = (e.clientX - offsetX) + 'px';
+                    div.style.top = (e.clientY - offsetY) + 'px';
+                });
+                document.addEventListener('mouseup', () => { isDragging = false; });
+
+                container.appendChild(div);
+            });
+        }
+
+        function renderFactions(el) {
+            if (!allFactions.length) {
+                el.innerHTML = '<div class="empty-state">暂无势力数据。</div>';
+                return;
+            }
+
+            let html = '<table><thead><tr><th>ID</th><th>名称</th><th>成员</th><th>领地</th><th>状态</th><th>操作</th></tr></thead><tbody>';
+            allFactions.forEach(f => {
+                const members = (f.members || []).map(m => `<span class="tag">${m}</span>`).join(' ');
+                const statusClass = f.status === 'active' ? 'active' : f.status === 'dissolved' ? 'dissolved' : '';
+                html += `<tr>
+                    <td><b>${f.faction_id}</b></td>
+                    <td>${f.name}</td>
+                    <td>${members || '-'}</td>
+                    <td>${f.territory || '-'}</td>
+                    <td><span class="tag ${statusClass}">${f.status || '活跃'}</span></td>
+                    <td><button class="btn sm" onclick="showFactionDetail('${f.faction_id}')">详情</button></td>
+                </tr>`;
+            });
+            html += '</tbody></table>';
+            el.innerHTML = html;
+        }
+
+        function showFactionDetail(factionId) {
+            const faction = allFactions.find(f => f.faction_id === factionId);
+            if (!faction) return;
+
+            let html = '<div class="detail-card">';
+            html += `<h3>${faction.name}</h3>`;
+            html += `<p><span class="label">ID:</span> ${faction.faction_id}</p>`;
+            html += `<p><span class="label">领地:</span> ${faction.territory || '-'}</p>`;
+            html += `<p><span class="label">状态:</span> <span class="tag">${faction.status || '活跃'}</span></p>`;
+
+            if (faction.members && faction.members.length) {
+                html += '<h3 style="margin-top:16px">成员</h3>';
+                faction.members.forEach(m => {
+                    html += `<span class="tag">${m}</span> `;
+                });
+            }
+
+            if (faction.attributes && Object.keys(faction.attributes).length) {
+                html += '<h3 style="margin-top:16px">属性</h3>';
+                html += '<div class="attr-grid">';
+                for (const [k, v] of Object.entries(faction.attributes)) {
+                    html += `<div class="attr-item"><div class="key">${k}</div><div class="value">${v}</div></div>`;
+                }
+                html += '</div>';
+            }
+
+            html += '</div>';
+            document.getElementById('modal-title').textContent = faction.name;
+            document.getElementById('modal-body').innerHTML = html;
+            document.getElementById('detail-modal').classList.add('active');
+        }
+
+        function renderEconomy(el) {
+            if (!economyData || !Object.keys(economyData).length) {
+                el.innerHTML = '<div class="empty-state">暂无经济数据。</div>';
+                return;
+            }
+
+            let html = '<h3>经济体系概览</h3>';
+            html += '<div class="economy-grid">';
+
+            if (economyData.price_level) {
+                html += '<div class="economy-card"><h4>物价水平</h4>';
+                for (const [item, price] of Object.entries(economyData.price_level)) {
+                    let numPrice = 0;
+                    try { numPrice = parseFloat(price); } catch(e) {}
+                    const level = numPrice > 70 ? 'high' : numPrice > 30 ? 'medium' : 'low';
+                    html += `<div style="margin-bottom:8px">`;
+                    html += `<div style="display:flex;justify-content:space-between;font-size:13px"><span>${item}</span><span class="economy-value">${price}</span></div>`;
+                    html += `<div class="economy-bar"><div class="economy-bar-fill ${level}" style="width:${Math.min(numPrice, 100)}%"></div></div>`;
+                    html += `</div>`;
+                }
+                html += '</div>';
+            }
+
+            if (economyData.faction_economy) {
+                html += '<div class="economy-card"><h4>势力经济</h4>';
+                for (const [fid, econ] of Object.entries(economyData.faction_economy)) {
+                    if (typeof econ === 'object') {
+                        html += `<div style="margin-bottom:12px">`;
+                        html += `<div style="font-size:13px;color:#a0a8ff;margin-bottom:4px">${fid}</div>`;
+                        for (const [attr, val] of Object.entries(econ)) {
+                            let numVal = 0;
+                            try { numVal = parseFloat(val); } catch(e) {}
+                            const level = numVal > 70 ? 'high' : numVal > 30 ? 'medium' : 'low';
+                            html += `<div style="margin-bottom:4px">`;
+                            html += `<div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:#888">${attr}</span><span>${val}</span></div>`;
+                            html += `<div class="economy-bar"><div class="economy-bar-fill ${level}" style="width:${Math.min(numVal, 100)}%"></div></div>`;
+                            html += `</div>`;
+                        }
+                        html += `</div>`;
+                    }
+                }
+                html += '</div>';
+            }
+
+            if (economyData.currency_system) {
+                html += '<div class="economy-card"><h4>货币体系</h4>';
+                if (typeof economyData.currency_system === 'string') {
+                    html += `<p style="color:#aaa;font-size:13px;line-height:1.6">${economyData.currency_system}</p>`;
+                } else {
+                    html += `<p style="color:#aaa;font-size:13px">${JSON.stringify(economyData.currency_system)}</p>`;
+                }
+                html += '</div>';
+            }
+
+            html += '</div>';
+            el.innerHTML = html;
+        }
+
+        function renderForeshadowings(el) {
+            if (!allForeshadowings.length) {
+                el.innerHTML = '<div class="empty-state">暂无伏笔数据。</div>';
+                return;
+            }
+
+            const planted = allForeshadowings.filter(f => f.status === 'planted');
+            const resolved = allForeshadowings.filter(f => f.status === 'resolved');
+
+            let html = '<div class="filter-chips">';
+            html += '<span class="filter-chip active" onclick="filterForeshadow(this, \'all\')">全部 (' + allForeshadowings.length + ')</span>';
+            html += '<span class="filter-chip" onclick="filterForeshadow(this, \'planted\')">待回收 (' + planted.length + ')</span>';
+            html += '<span class="filter-chip" onclick="filterForeshadow(this, \'resolved\')">已回收 (' + resolved.length + ')</span>';
+            html += '</div>';
+
+            html += '<div class="foreshadow-timeline" id="foreshadow-list">';
+            allForeshadowings.forEach(f => {
+                const isOverdue = f.status === 'planted' && f.expected_resolve && f.expected_resolve > 0;
+                const statusClass = f.status === 'resolved' ? 'resolved' : isOverdue ? 'planted' : 'planted';
+                html += `<div class="foreshadow-item ${statusClass}" data-status="${f.status}">`;
+                html += `<div style="font-size:14px;color:#e0e0e0">${f.description || f.id}</div>`;
+                html += `<div class="foreshadow-meta">`;
+                html += `<span class="foreshadow-meta-item">ID: <span>${f.id}</span></span>`;
+                html += `<span class="foreshadow-meta-item">状态: <span class="tag ${f.status}">${f.status}</span></span>`;
+                html += `<span class="foreshadow-meta-item">埋设: <span>第${f.planted_at}章</span></span>`;
+                if (f.expected_resolve) {
+                    html += `<span class="foreshadow-meta-item">预计回收: <span>第${f.expected_resolve}章</span></span>`;
+                }
+                if (f.resolved_at) {
+                    html += `<span class="foreshadow-meta-item">实际回收: <span>第${f.resolved_at}章</span></span>`;
+                }
+                html += `</div></div>`;
+            });
+            html += '</div>';
+            el.innerHTML = html;
+        }
+
+        function filterForeshadow(chipEl, status) {
+            document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+            chipEl.classList.add('active');
+            document.querySelectorAll('#foreshadow-list .foreshadow-item').forEach(item => {
+                if (status === 'all') {
+                    item.style.display = '';
+                } else {
+                    item.style.display = item.dataset.status === status ? '' : 'none';
+                }
+            });
+        }
+
+        function renderTimeline(el) {
+            if (!allTimeline.length) {
+                el.innerHTML = '<div class="empty-state">暂无时间线数据。</div>';
+                return;
+            }
+
+            let html = '<table><thead><tr><th>章节</th><th>事件</th><th>时间</th></tr></thead><tbody>';
+            allTimeline.forEach(e => {
+                html += `<tr>
+                    <td><b>第 ${e.chapter_id} 章</b></td>
+                    <td>${e.event}</td>
+                    <td>${e.timestamp || '-'}</td>
+                </tr>`;
+            });
+            html += '</tbody></table>';
+            el.innerHTML = html;
+        }
+
+        function closeModal() {
+            document.getElementById('detail-modal').classList.remove('active');
+        }
+
+        document.getElementById('detail-modal').addEventListener('click', function(e) {
+            if (e.target === this) closeModal();
+        });
+
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') closeModal();
+        });
+
+        async function init() {
+            await loadAllData();
+            loadTab();
+        }
+
+        init();
+        setInterval(async () => {
+            await loadAllData();
+            loadTab();
+        }, 15000);
+
+        const worldSocket = io(location.host, { transports: ['websocket'], reconnection: true, reconnectionDelay: 3000 });
+        worldSocket.on('progress_update', (data) => {
+            if (data.status === 'running' && data.current_stage) {
+                const indicator = document.getElementById('pipeline-indicator');
+                if (indicator) {
+                    indicator.textContent = data.current_stage;
+                    indicator.style.color = '#2ed573';
+                }
+            } else if (data.status === 'completed') {
+                loadAllData();
+                loadTab();
+            }
+        });
     </script>
 </body>
 </html>
