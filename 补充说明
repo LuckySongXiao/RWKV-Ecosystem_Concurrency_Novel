@@ -1,0 +1,2 @@
+本目录下需要手动添加rwkv_lightning_libtorch_win文件夹，并从https://github.com/Alic-Li/rwkv_lightning_libtorch/releases/download/V1.0.0/rwkv_lightning_libtorch2.10.0+cu132_sm75-120_Windows_amd64.zip下载，将内容解压进文件夹内
+在目录下手动添加rwkv_models文件夹，从https://www.modelscope.cn/models/shoumenchougou/RWKV-7-World-ST/files下载目标模型
