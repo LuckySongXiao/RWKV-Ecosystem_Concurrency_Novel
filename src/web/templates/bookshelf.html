@@ -20,11 +20,14 @@
         .sidebar-section h3 .add-btn { background: none; border: 1px solid #444; color: #7b8cff; cursor: pointer; font-size: 16px; width: 24px; height: 24px; border-radius: 4px; display: flex; align-items: center; justify-content: center; transition: all .2s; }
         .sidebar-section h3 .add-btn:hover { border-color: #7b8cff; background: #2a2a4e; }
 
-        .novel-card { background: #16213e; border: 1px solid #333; border-radius: 8px; padding: 14px; margin: 8px 0; cursor: pointer; transition: all .2s; }
+        .novel-card { background: #16213e; border: 1px solid #333; border-radius: 8px; padding: 14px; margin: 8px 0; cursor: pointer; transition: all .2s; position: relative; }
         .novel-card:hover { border-color: #7b8cff; transform: translateY(-1px); }
         .novel-card.active { border-color: #2ed573; background: #1a3a2a; }
         .novel-card .title { color: #a0a8ff; font-weight: bold; font-size: 15px; }
         .novel-card .meta { color: #888; font-size: 12px; margin-top: 4px; }
+        .novel-card .del-btn { position: absolute; top: 8px; right: 8px; background: transparent; border: 1px solid #444; color: #888; width: 24px; height: 24px; border-radius: 4px; cursor: pointer; font-size: 13px; display: none; align-items: center; justify-content: center; transition: all .2s; }
+        .novel-card:hover .del-btn { display: flex; }
+        .novel-card .del-btn:hover { border-color: #ff4757; background: #2a1a1a; color: #ff4757; }
 
         .tree-item { padding: 6px 8px; cursor: pointer; border-radius: 4px; font-size: 13px; display: flex; align-items: center; gap: 6px; transition: background .15s; }
         .tree-item:hover { background: #2a2a4e; }
@@ -271,6 +274,7 @@
                 html += `<div class="novel-card ${active}" onclick="selectNovel(${idx})">
                     <div class="title">📖 ${displayName}</div>
                     <div class="meta">${n.name}</div>
+                    <button class="del-btn" onclick="event.stopPropagation(); confirmDeleteNovel(${idx})" title="删除整本小说">🗑</button>
                 </div>`;
             });
             el.innerHTML = html;
@@ -758,6 +762,64 @@
         function confirmDeleteItem(path, name, type, event) {
             if (event) event.stopPropagation();
             showDeleteDialog(path, name, type);
+        }
+
+        function confirmDeleteNovel(idx) {
+            const n = novels[idx];
+            if (!n) return;
+            const displayName = n.name.replace('草稿_', '');
+            const isActive = n.path === currentNovelDir;
+            closeModal();
+            const overlay = document.createElement('div');
+            overlay.className = 'modal-overlay';
+            overlay.id = 'modal-overlay';
+            overlay.innerHTML = `<div class="modal danger-modal">
+                <h3>⚠️ 删除整本小说</h3>
+                <p>确定要删除小说「<strong style="color:#ff4757;">${escapeHtml(displayName)}</strong>」吗？<br>
+                将删除该小说目录及其下<strong>所有内容</strong>（含大纲、章节、草稿、缓存等）。<br>
+                此操作<strong>不可撤销</strong>！</p>
+                <label style="margin-top:10px;">请输入小说名称以确认删除：</label>
+                <input type="text" id="del-novel-confirm" placeholder="请输入：${escapeAttr(displayName)}" autofocus>
+                <div class="modal-btns">
+                    <button class="btn outline small" onclick="closeModal()">取消</button>
+                    <button class="btn danger small" id="btn-do-delete-novel">确认删除</button>
+                </div>
+            </div>`;
+            document.body.appendChild(overlay);
+            document.getElementById('del-novel-confirm').focus();
+            const btn = document.getElementById('btn-do-delete-novel');
+            btn.addEventListener('click', function() { doDeleteNovel(n.path, displayName, isActive); });
+        }
+
+        async function doDeleteNovel(novelPath, displayName, wasActive) {
+            const inputVal = document.getElementById('del-novel-confirm').value.trim();
+            if (inputVal !== displayName) {
+                showToast('输入的小说名称不匹配，请重新输入', 'error');
+                return;
+            }
+            closeModal();
+            try {
+                const r = await fetch('/api/novel/file/delete', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ path: novelPath })
+                });
+                const d = await r.json();
+                if (d.success) {
+                    showToast(`小说「${displayName}」已删除`, 'success');
+                    if (wasActive) {
+                        currentNovelDir = '';
+                        currentNovelName = '';
+                        document.getElementById('tree-section').style.display = 'none';
+                        goHome();
+                    }
+                    await loadNovels();
+                } else {
+                    showToast(d.error || '删除失败', 'error');
+                }
+            } catch(e) {
+                showToast('删除失败: ' + e, 'error');
+            }
         }
 
         function showDeleteDialog(path, name, type) {

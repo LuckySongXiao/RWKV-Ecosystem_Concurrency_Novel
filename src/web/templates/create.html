@@ -116,6 +116,30 @@
         .empty-state { text-align: center; padding: 40px; color: #666; }
         .progress-bar { height: 4px; background: #333; border-radius: 2px; margin-top: 8px; }
         .progress-fill { height: 100%; background: #2ed573; border-radius: 2px; transition: width .3s; }
+
+        /* 角色表格增强 */
+        .char-table-toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
+        .char-table-toolbar .char-tip { color: #888; font-size: 12px; margin-left: auto; }
+        .char-table-scroll { overflow-x: auto; max-height: 480px; overflow-y: auto; border: 1px solid #333; border-radius: 6px; }
+        .char-table { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 880px; }
+        .char-table thead th { position: sticky; top: 0; background: #16213e; color: #a0a8ff; padding: 8px 10px; text-align: left; border-bottom: 1px solid #333; font-size: 12px; z-index: 1; }
+        .char-table tbody td { padding: 8px 10px; border-bottom: 1px solid #222; vertical-align: top; }
+        .char-table tbody tr:hover td { background: #111122; }
+        .char-table td[contenteditable="true"]:hover { background: #0a0a15; outline: 1px solid #2ed573; }
+        .char-table td[contenteditable="true"]:focus { background: #0a0a15; outline: 2px solid #2ed573; }
+        .char-table .incomplete { color: #ff4757; font-style: italic; }
+        .char-table .complete { color: #2ed573; }
+        .char-empty-row td { background: #0a0a15 !important; }
+
+        /* SKILL 配置 */
+        .skill-card { background: #0d0d1a; border: 1px solid #333; border-radius: 6px; padding: 10px 12px; cursor: pointer; transition: all .15s; }
+        .skill-card:hover { border-color: #7b8cff; }
+        .skill-card.active { border-color: #2ed573; background: rgba(46, 213, 115, 0.05); }
+        .skill-card .skill-title { color: #a0a8ff; font-weight: bold; font-size: 13px; }
+        .skill-card .skill-desc { color: #888; font-size: 11px; margin-top: 4px; line-height: 1.4; max-height: 32px; overflow: hidden; }
+        .skill-card .skill-meta { display: flex; gap: 6px; align-items: center; margin-top: 6px; font-size: 10px; color: #555; }
+        .skill-card .badge-active { background: rgba(46, 213, 115, 0.2); color: #2ed573; padding: 1px 6px; border-radius: 3px; }
+        .skill-card .badge-size { background: #1a1a2e; color: #888; padding: 1px 6px; border-radius: 3px; }
     </style>
 </head>
 <body>
@@ -123,6 +147,7 @@
         <a href="/">首页</a>
         <a href="/create" style="background:#2a2a4e">小说创作</a>
         <a href="/pipeline">管线控制</a>
+        <a href="/bookshelf">书架</a>
         <a href="/world">世界状态</a>
         <a href="/roleplay">角色扮演</a>
         <a href="/review">审核裁决</a>
@@ -147,14 +172,41 @@
         </div>
 
         <div class="tabs">
-            <div class="tab active" onclick="switchTab('fields')">设定编辑</div>
-            <div class="tab" onclick="switchTab('optimized')">优化版管线</div>
-            <div class="tab" onclick="switchTab('auto')">全自动管线</div>
-            <div class="tab" onclick="switchTab('style')">写作风格</div>
-            <div class="tab" onclick="switchTab('outline')">生成大纲</div>
+            <div class="tab active" onclick="switchTab('fields')">📝 创作设定</div>
+            <div class="tab" onclick="switchTab('characters')">👥 角色表格</div>
+            <div class="tab" onclick="switchTab('skills')">🧩 SKILL 配置</div>
+            <div class="tab" onclick="switchTab('style')">✍️ 写作风格</div>
+            <div class="tab" onclick="switchTab('optimized')">⚡ 优化版管线</div>
+            <div class="tab" onclick="switchTab('auto')">🚀 全自动管线</div>
+            <div class="tab" onclick="switchTab('outline')">📖 大纲/主线</div>
         </div>
 
-        <!-- 逐条设定编辑 -->
+        <!-- 角色表格（独立标签页） -->
+        <div id="tab-characters" class="card" style="display:none">
+            <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <span style="color:#a0a8ff; font-size: 16px; font-weight: bold">👥 角色信息表</span>
+                <span style="color:#888; font-size: 12px;">提示：直接点击单元格编辑；其余内容（身份/性格/实力/来历）由 AI 自主生成</span>
+            </div>
+            <div class="char-table-toolbar" style="margin-bottom: 10px;">
+                <button class="btn sm primary" onclick="generateCharsAI()" id="btn-gen-chars">✨ AI 自主生成角色</button>
+                <button class="btn sm success" onclick="fillAllCharsAI()">🪄 AI 补全角色详情</button>
+                <button class="btn sm" onclick="toggleCharImport()">📥 批量导入</button>
+                <button class="btn sm" onclick="addEmptyCharRow()">➕ 手动添加</button>
+                <button class="btn sm warn" onclick="saveAllFields()">💾 保存到设定</button>
+                <span class="char-tip">💡 角色数据会同步到「创作设定」中的 characters 字段，并随管线写入 characters.json</span>
+            </div>
+            <div id="char-import-box" style="display:none; margin: 8px 0 12px;">
+                <textarea id="char-import-input" class="char-import-input" rows="4"
+                    placeholder="每行一个角色，格式：角色名 性别&#10;例如：&#10;林孤云 男&#10;苏芸 女&#10;也支持：林孤云(男), 苏芸(女)"></textarea>
+                <div style="margin-top:6px">
+                    <button class="btn sm success" onclick="importCharacters()">导入</button>
+                    <button class="btn sm" onclick="toggleCharImport()">取消</button>
+                </div>
+            </div>
+            <div id="char-table-container">加载中...</div>
+        </div>
+
+        <!-- 设定编辑 -->
         <div id="tab-fields">
             <div class="genre-bar">
                 <label>题材:</label>
@@ -239,7 +291,7 @@
                     </div>
                     <div>
                         <label style="color:#a0a8ff;font-size:13px;display:block;margin-bottom:4px">每章切片数</label>
-                        <input type="number" id="opt-slices" value="20" min="4" max="40" style="width:100%;background:#0a0a15;border:1px solid #333;color:#e0e0e0;padding:8px;border-radius:4px;font-size:13px">
+                        <input type="number" id="opt-slices" value="10" min="3" max="40" style="width:100%;background:#0a0a15;border:1px solid #333;color:#e0e0e0;padding:8px;border-radius:4px;font-size:13px">
                     </div>
                 </div>
 
@@ -329,11 +381,87 @@
             </div>
         </div>
 
-        <!-- 大纲 -->
+        <!-- SKILL 配置 -->
+        <div id="tab-skills" class="card" style="display:none">
+            <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <span style="color:#a0a8ff; font-size: 16px; font-weight: bold">🧩 SKILL.md 写作技能配置</span>
+                <span style="color:#888; font-size: 12px;">目录：<code id="skills-dir-label">context/skills/</code></span>
+            </div>
+            <div style="background:#0d1117; border:1px solid #2a3a5c; border-radius: 6px; padding: 12px; margin-bottom: 16px; font-size: 13px; line-height: 1.6;">
+                <div style="color:#7c8aff; font-weight: bold; margin-bottom: 6px;">📖 什么是 SKILL.md？</div>
+                <div style="color:#aaa;">
+                    SKILL.md 是描述<strong style="color:#fff;">写作风格技能</strong>的 Markdown 文件，遵循 Anthropic 规范。
+                    写作时会将所有<strong style="color:#2ed573;">已激活</strong>的 SKILL 自动注入到 Prompt，约束 AI 模仿该文风。
+                </div>
+                <div style="color:#888; margin-top: 6px; font-size: 12px;">
+                    格式：顶部 YAML 描述（<code>name</code> / <code>description</code>），下方为写作风格正文。
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 280px 1fr; gap: 16px;">
+                <!-- 左侧：列表 -->
+                <div>
+                    <div style="display: flex; gap: 6px; margin-bottom: 8px;">
+                        <input type="text" id="new-skill-name" placeholder="新 SKILL 名称" style="flex: 1; background:#0a0a15; border:1px solid #333; color:#e0e0e0; padding:6px 8px; border-radius:4px; font-size: 12px;">
+                        <button class="btn sm success" onclick="createNewSkill()">＋ 新建</button>
+                    </div>
+                    <div id="skill-list" style="display: flex; flex-direction: column; gap: 6px; max-height: 520px; overflow-y: auto;">
+                        加载中...
+                    </div>
+                    <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #333;">
+                        <div style="display: flex; gap: 6px; margin-bottom: 8px;">
+                            <input type="text" id="import-skill-dir" placeholder="技能包目录路径..." style="flex: 1; background:#0a0a15; border:1px solid #333; color:#e0e0e0; padding:6px 8px; border-radius:4px; font-size: 11px;" title="指向包含 .md 技能文件的目录">
+                            <button class="btn sm" onclick="importSkillPack()">📦 导入技能包</button>
+                        </div>
+                        <div style="display: flex; gap: 6px;">
+                            <button class="btn sm" onclick="saveAllSkills()">💾 保存所有修改</button>
+                            <button class="btn sm warn" onclick="reloadSkills()">🔄 重新加载</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 右侧：编辑器 -->
+                <div>
+                    <div id="skill-editor-area" style="display:none;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <div>
+                                <input type="checkbox" id="skill-active-toggle" onchange="toggleSkillActive()" style="margin-right: 6px;">
+                                <label for="skill-active-toggle" style="color:#2ed573; font-size: 13px; cursor: pointer;">激活（写作时引用）</label>
+                            </div>
+                            <div style="display: flex; gap: 6px;">
+                                <button class="btn sm success" onclick="saveCurrentSkill()">💾 保存</button>
+                                <button class="btn sm danger" onclick="deleteCurrentSkill()">🗑 删除</button>
+                            </div>
+                        </div>
+                        <div style="font-size: 12px; color:#888; margin-bottom: 4px;" id="skill-name-display"></div>
+                        <textarea id="skill-editor" rows="22" placeholder="---&#10;name: wuxia&#10;description: 武侠风格写作&#10;---&#10;&#10;# 武侠风格技能&#10;&#10;## 叙事特点&#10;- ..." style="width: 100%; background:#0a0a15; border:1px solid #333; color:#e0e0e0; padding:12px; border-radius:6px; font-size:13px; font-family: 'Cascadia Code', 'Consolas', monospace; line-height:1.6; resize: vertical;"></textarea>
+                    </div>
+                    <div id="skill-empty-hint" style="background: #111122; border: 1px dashed #444; border-radius: 8px; padding: 40px; text-align: center; color: #666;">
+                        <div style="font-size: 36px; margin-bottom: 8px;">🧩</div>
+                        <div>左侧选择或新建一个 SKILL.md 文件</div>
+                        <div style="font-size: 12px; margin-top: 6px; color: #555;">激活的 SKILL 会在章节写作时被自动注入到 Prompt</div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="skill-status" style="margin-top: 12px; font-size: 13px;"></div>
+        </div>
+
+        <!-- 大纲 / 故事主线 -->
         <div id="tab-outline" class="card" style="display:none">
-            <div style="color:#a0a8ff;font-size:16px;font-weight:bold;margin-bottom:12px">全书大纲</div>
+            <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <span style="color:#a0a8ff; font-size: 16px; font-weight: bold">📖 故事主线 & 全书大纲</span>
+                <span style="color:#888; font-size: 12px;">来源：优化版管线的 main_storyline.json / full_outline.json / outline.json</span>
+            </div>
+            <div style="display:flex; gap: 6px; margin-bottom: 14px;">
+                <button class="btn sm" onclick="loadStoryline(true)">🔄 刷新</button>
+                <button class="btn sm" onclick="switchOutlineView('storyline')">📜 故事主线</button>
+                <button class="btn sm" onclick="switchOutlineView('full_outline')">📚 全书大纲</button>
+                <button class="btn sm" onclick="switchOutlineView('outline')">📑 章节目录</button>
+                <button class="btn sm" onclick="switchOutlineView('characters')">👥 角色信息</button>
+            </div>
             <div class="outline-container" id="outline-view">
-                <div class="empty-state">大纲尚未生成。请先编写设定文档，然后启动创作管线。</div>
+                <div class="empty-state">加载中...</div>
             </div>
         </div>
     </div>
@@ -360,11 +488,20 @@
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
             event.target.classList.add('active');
             document.getElementById('tab-fields').style.display = tab === 'fields' ? '' : 'none';
+            document.getElementById('tab-characters') && (document.getElementById('tab-characters').style.display = tab === 'characters' ? '' : 'none');
+            document.getElementById('tab-skills').style.display = tab === 'skills' ? '' : 'none';
             document.getElementById('tab-optimized').style.display = tab === 'optimized' ? '' : 'none';
             document.getElementById('tab-auto').style.display = tab === 'auto' ? '' : 'none';
             document.getElementById('tab-style').style.display = tab === 'style' ? '' : 'none';
             document.getElementById('tab-outline').style.display = tab === 'outline' ? '' : 'none';
-            if (tab === 'outline') loadOutline();
+            if (tab === 'outline') loadStoryline();
+            if (tab === 'skills') loadSkills();
+            if (tab === 'characters') {
+                // 渲染角色表格
+                if (typeof renderCharTable === 'function') {
+                    renderCharTable();
+                }
+            }
         }
 
         async function loadFields() {
@@ -382,10 +519,10 @@
             container.innerHTML = '';
 
             const groups = {
-                'basic': { label: '基础设定', keys: ['genre', 'title', 'theme', 'tone'] },
-                'world': { label: '世界观设定', keys: ['worldview', 'power_system', 'factions', 'locations'] },
-                'characters': { label: '角色设定', keys: ['characters', 'protagonist', 'antagonist'] },
-                'plot': { label: '情节设定', keys: ['conflict', 'storyline', 'outline'] }
+                'basic': { label: '🎯 基础设定', keys: ['genre', 'title', 'theme', 'tone'] },
+                'background': { label: '🌍 故事背景', keys: ['world_law', 'background'] },
+                'power': { label: '⚡ 体系与势力', keys: ['cultivation_system', 'faction_pattern', 'economy_system', 'power_ceiling'] },
+                'plot': { label: '🔥 情节与冲突', keys: ['conflict_types', 'storyline', 'outline'] }
             };
 
             const totalFields = fields.filter(f => f.key !== 'outline').length;
@@ -452,6 +589,10 @@
                     input.value = f.value;
                     input.placeholder = f.placeholder;
                     input.rows = f.multiline ? 4 : 1;
+                    // 角色字段：textarea 隐藏，改为表格编辑
+                    if (f.key === 'characters') {
+                        input.style.display = 'none';
+                    }
                     input.oninput = () => {
                         const val = input.value.trim();
                         const st = document.getElementById('status-' + f.key);
@@ -474,25 +615,30 @@
                     groupDiv.appendChild(hint);
 
                     if (f.key === 'characters') {
-                        const importArea = document.createElement('div');
-                        importArea.className = 'char-import-area';
-                        importArea.innerHTML = `
-                            <div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap">
-                                <button class="btn sm" onclick="toggleCharImport()">批量导入角色</button>
-                                <button class="btn sm warn" onclick="prefillCharIdentity()">模板预填身份</button>
-                                <button class="btn sm success" onclick="fillAllCharsAI()">AI并发补全</button>
-                                <button class="btn sm" onclick="saveCharToField()">保存到设定</button>
+                        // 角色设定：以表格形式呈现
+                        const tableDiv = document.createElement('div');
+                        tableDiv.className = 'char-table-wrapper';
+                        tableDiv.id = 'char-table-wrapper';
+                        tableDiv.innerHTML = `
+                            <div class="char-table-toolbar">
+                                <button class="btn sm success" onclick="fillAllCharsAI()">🤖 AI 自主生成角色</button>
+                                <button class="btn sm" onclick="toggleCharImport()">📥 批量导入角色</button>
+                                <button class="btn sm" onclick="addEmptyCharRow()">➕ 手动添加</button>
+                                <span class="char-tip">💡 提示：其余内容（身份、性格、实力、来历等）由 AI 自主生成；点击单元格直接编辑。</span>
                             </div>
-                            <div id="char-import-box" style="display:none">
+                            <div id="char-import-box" style="display:none; margin: 8px 0 12px;">
                                 <textarea id="char-import-input" class="char-import-input" rows="4"
-                                    placeholder="每行一个角色，格式：角色名 性别&#10;例如：&#10;林孤云 男&#10;苏芸 女&#10;枯影道人 男&#10;&#10;也支持：林孤云(男), 苏芸(女)"></textarea>
+                                    placeholder="每行一个角色，格式：角色名 性别&#10;例如：&#10;林孤云 男&#10;苏芸 女&#10;也支持：林孤云(男), 苏芸(女)"></textarea>
                                 <div style="margin-top:6px">
                                     <button class="btn sm success" onclick="importCharacters()">导入</button>
+                                    <button class="btn sm" onclick="toggleCharImport()">取消</button>
                                 </div>
                             </div>
                             <div id="char-table-container"></div>
                         `;
-                        groupDiv.appendChild(importArea);
+                        groupDiv.appendChild(tableDiv);
+                        // 把后端返回的 characters 文本解析为表格数据
+                        syncCharTableFromValue(f.value);
                     }
 
                     section.appendChild(groupDiv);
@@ -521,35 +667,184 @@
             return false;
         }
 
+        // 从当前 DOM 状态构造 spec_map（{key: value}），过滤占位符/空内容
+        function buildSpecMap(excludeKey) {
+            const map = {};
+            if (!fieldsData || fieldsData.length === 0) return map;
+            for (const f of fieldsData) {
+                if (!f.key || f.key === excludeKey) continue;
+                const input = document.getElementById('field-' + f.key);
+                if (!input) continue;
+                const val = (input.value || '').trim();
+                if (!val || isPlaceholderClient(val)) continue;
+                map[f.key] = val;
+            }
+            return map;
+        }
+
+        // 兼容旧接口的简单 spec_context（纯文本拼接）
+        function buildSpecContextText(excludeKey) {
+            const lines = [];
+            if (!fieldsData) return '';
+            for (const f of fieldsData) {
+                if (!f.key || f.key === excludeKey) continue;
+                const input = document.getElementById('field-' + f.key);
+                if (!input) continue;
+                const val = (input.value || '').trim();
+                if (!val || isPlaceholderClient(val)) continue;
+                lines.push(f.label + ': ' + val);
+            }
+            return lines.join('\n');
+        }
+
         function toggleCharImport() {
             const box = document.getElementById('char-import-box');
             box.style.display = box.style.display === 'none' ? '' : 'none';
         }
 
         function renderCharTable() {
-            const container = document.getElementById('char-table-container');
-            if (!container) return;
-            if (importedCharacters.length === 0) {
-                container.innerHTML = '';
+            // 同时渲染 tab-fields 内嵌的表格和 tab-characters 独立页签的表格
+            const containers = document.querySelectorAll('#char-table-container');
+            if (containers.length === 0) return;
+            const cols = ['姓名', '性别', '类型', '身份', '性格', '实力', '来历', '操作'];
+            const headerHtml = cols.map(c => `<th>${c}</th>`).join('');
+
+            const buildBody = () => {
+                if (importedCharacters.length === 0) {
+                    return `<tr class="char-empty-row"><td colspan="8" style="text-align:center; color:#888; padding: 20px;">
+                        暂无角色。点击"AI 自主生成角色"或"手动添加"。
+                    </td></tr>`;
+                }
+                return importedCharacters.map((c, i) => {
+                    const personality = Array.isArray(c.personality) ? c.personality.join('、') : (c.personality || '');
+                    const cls = c.is_complete ? 'complete' : 'incomplete';
+                    return `<tr>
+                        <td contenteditable="true" data-field="name" data-i="${i}">${escapeHtml(c.name || '')}</td>
+                        <td contenteditable="true" data-field="gender" data-i="${i}">${escapeHtml(c.gender || '')}</td>
+                        <td contenteditable="true" data-field="role_type" data-i="${i}">${escapeHtml(c.role_type || '')}</td>
+                        <td contenteditable="true" class="${cls}" data-field="identity" data-i="${i}">${escapeHtml(c.identity || '')}</td>
+                        <td contenteditable="true" data-field="personality" data-i="${i}">${escapeHtml(personality)}</td>
+                        <td contenteditable="true" data-field="initial_power" data-i="${i}">${escapeHtml(c.initial_power || '')}</td>
+                        <td contenteditable="true" data-field="background" data-i="${i}">${escapeHtml(c.background || '')}</td>
+                        <td>
+                            <button class="btn sm" onclick="fillSingleChar(${i})" title="AI 补全此行">🤖</button>
+                            <button class="btn sm danger" onclick="removeChar(${i})" title="删除">🗑</button>
+                        </td>
+                    </tr>`;
+                }).join('');
+            };
+            const html = `<div class="char-table-scroll"><table class="char-table"><thead><tr>${headerHtml}</tr></thead><tbody>${buildBody()}</tbody></table></div>`;
+
+            containers.forEach(container => {
+                container.innerHTML = html;
+                // 单元格编辑后回写
+                container.querySelectorAll('td[contenteditable]').forEach(td => {
+                    td.addEventListener('blur', () => {
+                        const i = parseInt(td.dataset.i);
+                        const f = td.dataset.field;
+                        if (importedCharacters[i]) {
+                            importedCharacters[i][f] = td.textContent.trim();
+                            // 同步到所有容器
+                            renderCharTable();
+                        }
+                    });
+                });
+            });
+        }
+
+        function escapeHtml(s) {
+            if (s == null) return '';
+            return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+        }
+
+        function addEmptyCharRow() {
+            importedCharacters.push({
+                name: '', gender: '', role_type: '', identity: '',
+                personality: '', initial_power: '', background: '',
+                is_complete: false
+            });
+            renderCharTable();
+        }
+
+        function removeChar(i) {
+            importedCharacters.splice(i, 1);
+            renderCharTable();
+        }
+
+        function syncCharTableFromValue(text) {
+            // 把 specification.md 中的 ## 主要人物 节文本解析为表格行
+            // 格式示例：1. 林孤云（男·主角）：剑宗少主...
+            // 或：- 林孤云：剑宗少主
+            if (!text || text.trim().length < 2) {
+                importedCharacters = [];
+                renderCharTable();
                 return;
             }
-            let html = '<table class="char-table"><tr><th>姓名</th><th>性别</th><th>身份</th><th>性格</th><th>实力</th><th>类型</th><th>操作</th></tr>';
-            importedCharacters.forEach((c, i) => {
-                const cls = c.is_complete ? 'complete' : 'incomplete';
-                const personality = Array.isArray(c.personality) ? c.personality.join('、') : (c.personality || '');
-                html += `<tr>
-                    <td><b>${c.name}</b></td>
-                    <td>${c.gender || '-'}</td>
-                    <td class="${cls}">${c.identity || '-'}</td>
-                    <td class="char-detail">${personality || '-'}</td>
-                    <td class="char-detail">${c.initial_power || '-'}</td>
-                    <td>${c.role_type || '-'}</td>
-                    <td>${!c.is_complete ? `<button class="btn sm warn" onclick="fillSingleChar(${i})">补全</button>` : '✓'}</td>
-                </tr>`;
-            });
-            html += '</table>';
-            container.innerHTML = html;
+            // 简单行解析
+            const lines = text.split(/\n+/);
+            const chars = [];
+            for (const line of lines) {
+                const t = line.trim();
+                if (!t) continue;
+                // 去除序号/项目符号
+                const m = t.replace(/^[\d]+[\.、\s]+/, '').replace(/^[-*+•]\s*/, '').trim();
+                if (!m) continue;
+                // 解析"姓名（性别·类型）：身份..."
+                let name = '', gender = '', role_type = '', rest = '';
+                const match = m.match(/^([^（(]+)([（(]([^）)]*)[）)])?\s*[:：]?\s*(.*)$/);
+                if (match) {
+                    name = match[1].trim();
+                    const meta = match[3] || '';
+                    rest = match[4] || '';
+                    if (meta) {
+                        if (meta.includes('男')) gender = '男';
+                        else if (meta.includes('女')) gender = '女';
+                        const restMeta = meta.replace(/[男女]/g, '').replace(/[、，,]/g, ' ').trim();
+                        if (restMeta) role_type = restMeta;
+                    }
+                } else {
+                    name = m;
+                }
+                if (name) {
+                    chars.push({
+                        name, gender, role_type, identity: rest || '',
+                        personality: '', initial_power: '', background: '',
+                        is_complete: !!(gender && role_type && rest),
+                    });
+                }
+            }
+            importedCharacters = chars;
+            renderCharTable();
         }
+
+        function charTableToText() {
+            // 把表格数据转回 markdown 文本，写回 field
+            if (importedCharacters.length === 0) return '';
+            const lines = importedCharacters.map((c, i) => {
+                const meta = [c.gender, c.role_type].filter(Boolean).join('·');
+                const tag = meta ? `（${meta}）` : '';
+                const parts = [c.identity, Array.isArray(c.personality) ? c.personality.join('、') : c.personality, c.initial_power, c.background].filter(Boolean);
+                return `${i + 1}. ${c.name || '未命名'}${tag}：${parts.join('，')}`;
+            });
+            return lines.join('\n');
+        }
+
+        // 角色表格改动时自动同步回 characters 字段
+        const _origRenderCharTable = renderCharTable;
+        renderCharTable = function() {
+            _origRenderCharTable();
+            // 同步到隐藏的 characters 字段
+            const ta = document.getElementById('field-characters');
+            if (ta) {
+                const text = charTableToText();
+                ta.value = text;
+                ta.dispatchEvent(new Event('input'));
+            }
+        };
+        // 监听角色字段被外部修改（如 AI 补全后）
+        const _origLoadFields = loadFields;
+        // 角色相关现有函数保持不变，下面的 importCharacters 改动后调用 renderCharTable
+
 
         async function importCharacters() {
             const text = document.getElementById('char-import-input').value;
@@ -583,18 +878,20 @@
         async function fillSingleChar(index) {
             const c = importedCharacters[index];
             if (!c) return;
-            let specContext = '';
-            fieldsData.forEach(f => {
-                const input = document.getElementById('field-' + f.key);
-                if (input && input.value.trim() && f.key !== 'characters') {
-                    specContext += f.label + ': ' + input.value.trim() + '\n';
-                }
-            });
+            // 用结构化 spec_map 喂给后端：后端会按 SPEC_FIELD_ORDER 排序并自动排除 characters 字段，
+            // 让 AI 看到题材/世界观/体系/势力/冲突/主线等所有关联设定
+            const specMap = buildSpecMap('characters');
+            const specContext = buildSpecContextText('characters');
             try {
                 const r = await fetch('/api/characters/fill_single', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({name: c.name, gender: c.gender, genre: selectedGenres.join('、') || '仙侠', spec_context: specContext})
+                    body: JSON.stringify({
+                        name: c.name, gender: c.gender,
+                        genre: selectedGenres.join('、') || '仙侠',
+                        spec_context: specContext,
+                        spec_map: specMap,
+                    })
                 });
                 const d = await r.json();
                 if (d.status === 'filled') {
@@ -604,20 +901,68 @@
             } catch(e) { console.error('fill_single error:', e); }
         }
 
+        async function generateCharsAI() {
+            // AI 自主生成角色：完全基于已有创作条件（世界观/体系/势力/冲突/主线/故事背景等），
+            // 不需要用户预先提供角色名，AI 直接生成主角+配角+反派+导师
+            const btn = document.getElementById('btn-gen-chars');
+            const oldText = btn ? btn.textContent : '';
+            if (btn) { btn.textContent = '生成中...'; btn.disabled = true; }
+
+            // 用结构化 spec_map：让 AI 看到题材/世界观/体系/势力/冲突/主线/故事背景等所有关联设定
+            const specMap = buildSpecMap('characters');
+            const specContext = buildSpecContextText('characters');
+
+            // 若当前已有角色，弹窗确认是否覆盖
+            if (importedCharacters.length > 0) {
+                if (!confirm(`当前已有 ${importedCharacters.length} 个角色。\nAI 生成将覆盖现有角色表，是否继续？`)) {
+                    if (btn) { btn.textContent = oldText; btn.disabled = false; }
+                    return;
+                }
+            }
+
+            try {
+                const r = await fetch('/api/characters/generate', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        genre: selectedGenres.join('、') || '仙侠',
+                        count: 4,
+                        spec_context: specContext,
+                        spec_map: specMap,
+                    })
+                });
+                const d = await r.json();
+                if (d.characters && d.characters.length > 0) {
+                    importedCharacters = d.characters;
+                    renderCharTable();
+                    // 自动同步到 characters 字段并保存
+                    await saveCharToField();
+                } else {
+                    alert('AI 生成失败：未返回有效角色数据。请检查上方"创作设定"是否填写了题材/世界观等内容。');
+                }
+            } catch(e) {
+                console.error('generate_chars error:', e);
+                alert('AI 生成请求失败：' + e.message);
+            }
+
+            if (btn) { btn.textContent = oldText; btn.disabled = false; }
+        }
+
         async function fillAllCharsAI() {
             if (importedCharacters.length === 0) return;
-            let specContext = '';
-            fieldsData.forEach(f => {
-                const input = document.getElementById('field-' + f.key);
-                if (input && input.value.trim() && f.key !== 'characters') {
-                    specContext += f.label + ': ' + input.value.trim() + '\n';
-                }
-            });
+            // 用结构化 spec_map：让每个角色都看到题材/世界观/体系/势力/冲突/主线/故事背景等所有关联设定
+            const specMap = buildSpecMap('characters');
+            const specContext = buildSpecContextText('characters');
             try {
                 const r = await fetch('/api/characters/fill_batch', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({characters: importedCharacters, genre: selectedGenres.join('、') || '仙侠', spec_context: specContext})
+                    body: JSON.stringify({
+                        characters: importedCharacters,
+                        genre: selectedGenres.join('、') || '仙侠',
+                        spec_context: specContext,
+                        spec_map: specMap,
+                    })
                 });
                 const d = await r.json();
                 if (d.characters) {
@@ -671,19 +1016,19 @@
             btn.textContent = '生成中...';
             btn.disabled = true;
 
-            let specContext = '';
-            fieldsData.forEach(f => {
-                const input = document.getElementById('field-' + f.key);
-                if (input && input.value.trim()) {
-                    specContext += f.label + ': ' + input.value.trim() + '\n';
-                }
-            });
+            // 构造结构化 spec_map（自动排除当前字段）和文本 spec_context
+            const specMap = buildSpecMap(key);
+            const specContext = buildSpecContextText(key);
 
             try {
                 const r = await fetch('/api/context/auto_fill/' + key, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({genre: selectedGenres.join('、') || '仙侠', spec_context: specContext})
+                    body: JSON.stringify({
+                        genre: selectedGenres.join('、') || '仙侠',
+                        spec_context: specContext,
+                        spec_map: specMap,
+                    })
                 });
                 const d = await r.json();
 
@@ -719,10 +1064,17 @@
             try {
                 const r = await fetch('/api/context/spec');
                 const d = await r.json();
+                // 并发补全需要同时生成 characters/storyline/style 三个子任务；
+                // 用 spec_map 让后端为三个子任务分别构造"排除自身"的结构化上下文
+                const specMap = buildSpecMap();
                 const cr = await fetch('/api/context/concurrent_fill', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({content: d.content || '', genre: selectedGenres.join('、')})
+                    body: JSON.stringify({
+                        content: d.content || '',
+                        genre: selectedGenres.join('、'),
+                        spec_map: specMap,
+                    })
                 });
                 const result = await cr.json();
                 await loadFields();
@@ -761,10 +1113,16 @@
             try {
                 const r = await fetch('/api/context/spec');
                 const d = await r.json();
+                // 让后端为 style 子任务构造"排除 style 自身"的结构化上下文
+                const specMap = buildSpecMap('style');
                 const cr = await fetch('/api/context/concurrent_fill', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({content: d.content || '', genre: selectedGenres.join('、')})
+                    body: JSON.stringify({
+                        content: d.content || '',
+                        genre: selectedGenres.join('、'),
+                        spec_map: specMap,
+                    })
                 });
                 const result = await cr.json();
                 if (result.style_md) {
@@ -774,80 +1132,394 @@
             } catch(e) {}
         }
 
-        async function loadOutline() {
+        // ============== SKILL.md 管理 ==============
+        let _skills = [];
+        let _activeSkillNames = [];
+        let _currentSkillName = null;
+
+        async function loadSkills() {
+            const listEl = document.getElementById('skill-list');
+            listEl.innerHTML = '加载中...';
             try {
-                const r = await fetch('/api/output/outline');
+                const r = await fetch('/api/skills');
                 const d = await r.json();
-                const el = document.getElementById('outline-view');
-                if (d.exists === false || !d.raw_output) {
-                    el.innerHTML = '<div class="empty-state">大纲尚未生成。请先编写设定文档，然后启动创作管线。</div>';
-                } else {
-                    let outlineData;
-                    try {
-                        outlineData = JSON.parse(d.raw_output);
-                    } catch(e) {
-                        el.innerHTML = '<div class="empty-state">大纲解析失败，请重新生成。</div>';
-                        return;
-                    }
-                    renderOutline(outlineData);
-                }
-            } catch(e) {
-                document.getElementById('outline-view').innerHTML = '<div class="empty-state">加载失败</div>';
+                _skills = d.skills || [];
+                _activeSkillNames = d.active || [];
+                if (d.dir) document.getElementById('skills-dir-label').textContent = d.dir.replace(/^.*context[\\/]/, 'context/');
+                renderSkillList();
+            } catch (e) {
+                listEl.innerHTML = '<div style="color:#ff4757; padding: 10px; font-size: 12px;">加载失败: ' + e.message + '</div>';
             }
         }
 
-        function renderOutline(data) {
-            const el = document.getElementById('outline-view');
-            const title = data.title || '未命名小说';
-            const genre = data.genre || '未知';
-            const mainConflict = data.mainConflict || '';
-            const ending = data.endingDirection || {};
-            const volumes = data.volumes || [];
+        function renderSkillList() {
+            const listEl = document.getElementById('skill-list');
+            if (_skills.length === 0) {
+                listEl.innerHTML = '<div style="color:#888; text-align: center; padding: 20px; font-size: 12px;">暂无 SKILL.md<br><span style="font-size: 11px;">在左侧输入名称创建</span></div>';
+                return;
+            }
+            listEl.innerHTML = _skills.map(s => {
+                const isActive = _activeSkillNames.includes(s.name);
+                const selected = s.name === _currentSkillName ? 'active' : '';
+                return `<div class="skill-card ${selected}" onclick="selectSkill('${s.name}')">
+                    <div class="skill-title">📄 ${escapeHtml(s.title || s.display_name)}</div>
+                    <div class="skill-desc">${escapeHtml(s.description || '（无描述）')}</div>
+                    <div class="skill-meta">
+                        ${isActive ? '<span class="badge-active">已激活</span>' : ''}
+                        <span class="badge-size">${Math.round(s.size / 10) / 100} KB</span>
+                        <span style="color:#555;">${s.name}</span>
+                    </div>
+                </div>`;
+            }).join('');
+        }
 
+        async function selectSkill(name) {
+            _currentSkillName = name;
+            renderSkillList();
+            try {
+                const r = await fetch('/api/skills/' + encodeURIComponent(name));
+                const d = await r.json();
+                document.getElementById('skill-editor-area').style.display = '';
+                document.getElementById('skill-empty-hint').style.display = 'none';
+                document.getElementById('skill-name-display').textContent = '文件: ' + name;
+                document.getElementById('skill-editor').value = d.content || '';
+                document.getElementById('skill-active-toggle').checked = _activeSkillNames.includes(name);
+            } catch (e) {
+                showSkillStatus('加载失败: ' + e.message, 'error');
+            }
+        }
+
+        function createNewSkill() {
+            const input = document.getElementById('new-skill-name');
+            const name = (input.value || '').trim();
+            if (!name) { showSkillStatus('请先输入 SKILL 名称', 'warn'); return; }
+            const filename = name.toLowerCase().endsWith('.md') ? name : name + '.md';
+            const template = `---
+name: ${name.replace(/\.md$/, '')}
+description: 简短描述这个写作技能
+---
+
+# ${name.replace(/\.md$/, '')} 写作技能
+
+## 叙事特点
+- ...
+
+## 文风基调
+- ...
+
+## 常用词汇
+- ...
+
+## 禁忌（不要出现）
+- ...
+`;
+            // 直接保存并选中新文件
+            fetch('/api/skills', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({name: filename, content: template})
+            }).then(r => r.json()).then(d => {
+                if (d.status === 'saved') {
+                    showSkillStatus('已创建 SKILL: ' + filename, 'success');
+                    input.value = '';
+                    return loadSkills().then(() => selectSkill(filename));
+                } else {
+                    showSkillStatus('创建失败: ' + (d.error || '未知'), 'error');
+                }
+            }).catch(e => showSkillStatus('请求失败: ' + e.message, 'error'));
+        }
+
+        async function saveCurrentSkill() {
+            if (!_currentSkillName) { showSkillStatus('请先选择 SKILL', 'warn'); return; }
+            const content = document.getElementById('skill-editor').value;
+            try {
+                const r = await fetch('/api/skills', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({name: _currentSkillName, content})
+                });
+                const d = await r.json();
+                if (d.status === 'saved') {
+                    showSkillStatus('✓ 已保存: ' + _currentSkillName, 'success');
+                    loadSkills();
+                } else {
+                    showSkillStatus('保存失败: ' + (d.error || '未知'), 'error');
+                }
+            } catch (e) {
+                showSkillStatus('请求失败: ' + e.message, 'error');
+            }
+        }
+
+        async function deleteCurrentSkill() {
+            if (!_currentSkillName) return;
+            if (!confirm('确定删除 ' + _currentSkillName + ' ？此操作不可撤销。')) return;
+            try {
+                const r = await fetch('/api/skills/' + encodeURIComponent(_currentSkillName), {method: 'DELETE'});
+                const d = await r.json();
+                if (d.status === 'deleted') {
+                    showSkillStatus('✓ 已删除: ' + _currentSkillName, 'success');
+                    _currentSkillName = null;
+                    document.getElementById('skill-editor-area').style.display = 'none';
+                    document.getElementById('skill-empty-hint').style.display = '';
+                    loadSkills();
+                } else {
+                    showSkillStatus('删除失败: ' + (d.error || '未知'), 'error');
+                }
+            } catch (e) {
+                showSkillStatus('请求失败: ' + e.message, 'error');
+            }
+        }
+
+        async function importSkillPack() {
+            const input = document.getElementById('import-skill-dir');
+            const sourceDir = (input.value || '').trim();
+            if (!sourceDir) { showSkillStatus('请先输入技能包目录路径', 'warn'); return; }
+            if (!confirm('将导入目录下的所有 .md 技能文件到 context/skills/，并自动激活。\n\n源: ' + sourceDir + '\n\n继续？')) return;
+            showSkillStatus('导入中...', 'info');
+            try {
+                const r = await fetch('/api/skills/import', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({source_dir: sourceDir, overwrite: false, activate: true})
+                });
+                const d = await r.json();
+                if (d.status === 'ok') {
+                    let msg = '✓ 导入完成。';
+                    msg += '\n  · 新增: ' + (d.imported || []).join(', ') || '(无)';
+                    if ((d.skipped || []).length) msg += '\n  · 跳过: ' + d.skipped.join(', ');
+                    if ((d.errors || []).length) msg += '\n  · 失败: ' + d.errors.join('; ');
+                    msg += '\n  · 当前激活: ' + (d.active || []).join(', ');
+                    showSkillStatus(msg, (d.errors || []).length ? 'warn' : 'success');
+                    input.value = '';
+                    loadSkills();
+                } else {
+                    showSkillStatus('导入失败: ' + (d.error || '未知'), 'error');
+                }
+            } catch (e) {
+                showSkillStatus('请求失败: ' + e.message, 'error');
+            }
+        }
+
+        async function toggleSkillActive() {
+            if (!_currentSkillName) return;
+            const isActive = document.getElementById('skill-active-toggle').checked;
+            let next = [..._activeSkillNames];
+            if (isActive) {
+                if (!next.includes(_currentSkillName)) next.push(_currentSkillName);
+            } else {
+                next = next.filter(n => n !== _currentSkillName);
+            }
+            try {
+                const r = await fetch('/api/skills/active', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({names: next})
+                });
+                const d = await r.json();
+                _activeSkillNames = d.active || [];
+                showSkillStatus((isActive ? '✓ 已激活: ' : '✗ 已停用: ') + _currentSkillName, 'success');
+                renderSkillList();
+            } catch (e) {
+                showSkillStatus('请求失败: ' + e.message, 'error');
+            }
+        }
+
+        async function saveAllSkills() {
+            if (_currentSkillName) {
+                await saveCurrentSkill();
+            } else {
+                showSkillStatus('当前未选中 SKILL', 'warn');
+            }
+        }
+
+        function reloadSkills() {
+            loadSkills();
+        }
+
+        function showSkillStatus(msg, type) {
+            const el = document.getElementById('skill-status');
+            el.textContent = msg;
+            const colorMap = {success: '#2ed573', error: '#ff4757', warn: '#ffa502'};
+            el.style.color = colorMap[type] || '#888';
+        }
+
+        // ============== 大纲/故事主线 ==============
+        let _currentOutlineView = 'storyline';
+        let _storylineData = null;
+        let _fullOutlineData = null;
+        let _outlineData = null;
+        let _charactersJsonData = null;
+
+        async function loadStoryline(forceView) {
+            const el = document.getElementById('outline-view');
+            el.innerHTML = '<div class="empty-state">加载中...</div>';
+            try {
+                const [r1, r2, r3, r4] = await Promise.all([
+                    fetch('/api/output/main_storyline').then(r => r.json()),
+                    fetch('/api/output/full_outline').then(r => r.json()),
+                    fetch('/api/output/outline').then(r => r.json()),
+                    fetch('/api/output/characters').then(r => r.json()),
+                ]);
+                _storylineData = r1.exists === false ? null : r1;
+                _fullOutlineData = r2.exists === false ? null : r2;
+                _outlineData = r3.exists === false ? null : r3;
+                _charactersJsonData = r4.exists === false ? null : r4;
+                if (forceView) _currentOutlineView = forceView === true ? _currentOutlineView : forceView;
+                renderCurrentOutlineView();
+            } catch (e) {
+                el.innerHTML = '<div class="empty-state">加载失败: ' + escapeHtml(e.message) + '</div>';
+            }
+        }
+
+        function switchOutlineView(name) {
+            _currentOutlineView = name;
+            renderCurrentOutlineView();
+        }
+
+        function renderCurrentOutlineView() {
+            const el = document.getElementById('outline-view');
+            if (_currentOutlineView === 'storyline') return renderStoryline(el, _storylineData);
+            if (_currentOutlineView === 'full_outline') return renderFullOutline(el, _fullOutlineData);
+            if (_currentOutlineView === 'outline') return renderOutline(el, _outlineData);
+            if (_currentOutlineView === 'characters') return renderCharactersJson(el, _charactersJsonData);
+        }
+
+        function renderStoryline(el, data) {
+            if (!data) {
+                el.innerHTML = '<div class="empty-state">📜 故事主线尚未生成。<br><span style="font-size:12px;color:#888">请在「优化版管线」或「全自动管线」启动生成。</span></div>';
+                return;
+            }
+            const title = data.title || '未命名主线';
+            const description = data.description || '';
+            const stages = data.stages || [];
+            const coreConflict = data.core_conflict || data.mainConflict || '';
+            const ending = data.ending || data.endingDirection || '';
+
+            let html = `
+                <div class="outline-header">
+                    <div class="outline-title">📜 ${escapeHtml(title)}</div>
+                    <div class="outline-meta">
+                        <div class="outline-meta-item">
+                            <span class="outline-meta-label">阶段数:</span>
+                            <span class="outline-meta-value">${stages.length} 个</span>
+                        </div>
+                    </div>
+                    ${description ? `<div style="margin-top:10px; color:#cbd5ff; line-height:1.6;">${escapeHtml(description)}</div>` : ''}
+                </div>
+            `;
+            if (coreConflict) {
+                html += `<div class="conflict-card">
+                    <div class="conflict-title">🔥 核心冲突</div>
+                    <div class="conflict-text">${escapeHtml(coreConflict)}</div>
+                </div>`;
+            }
+            if (ending) {
+                html += `<div class="ending-card">
+                    <div class="ending-title">✨ 结局方向</div>
+                    <div class="ending-text">${escapeHtml(ending)}</div>
+                </div>`;
+            }
+
+            html += '<div style="margin-top:24px">';
+            stages.forEach((st, idx) => {
+                const name = st.stage_name || `阶段 ${idx + 1}`;
+                const desc = st.description || '';
+                const keyEvents = st.key_events || [];
+                const charFocus = st.character_focus || [];
+                const core = st.core_conflict || '';
+                const sub = st.sub_conflicts || [];
+                const end = st.ending || '';
+                html += `<div class="volume-card">
+                    <div class="volume-header" onclick="toggleVolume('sl-${idx}')">
+                        <div class="volume-title">
+                            <span class="expand-icon" id="icon-sl-${idx}">▶</span>
+                            ${idx + 1}. ${escapeHtml(name)}
+                        </div>
+                        ${desc ? `<div class="volume-theme">${escapeHtml(desc)}</div>` : ''}
+                        <div class="volume-info">
+                            <div class="volume-info-item">📌 ${keyEvents.length} 个关键事件</div>
+                            <div class="volume-info-item">👥 ${charFocus.length} 角色焦点</div>
+                        </div>
+                    </div>
+                    <div class="volume-content" id="vol-content-sl-${idx}">`;
+                if (keyEvents.length) {
+                    html += `<div class="chapter-list">`;
+                    keyEvents.forEach(ev => {
+                        html += `<div class="chapter-item">
+                            <div class="chapter-title">📌 ${escapeHtml(typeof ev === 'string' ? ev : (ev.name || ev.event || JSON.stringify(ev)))}</div>
+                        </div>`;
+                    });
+                    html += `</div>`;
+                }
+                if (charFocus.length) {
+                    html += `<div style="margin-top: 12px; padding: 10px; background:#0a0a15; border-radius: 6px;">
+                        <div style="color:#a0a8ff; font-size:13px; font-weight:bold; margin-bottom: 6px;">👥 角色焦点</div>`;
+                    charFocus.forEach(cf => {
+                        html += `<div style="color:#cbd5ff; font-size:13px; padding:3px 0;">• ${escapeHtml(typeof cf === 'string' ? cf : JSON.stringify(cf))}</div>`;
+                    });
+                    html += `</div>`;
+                }
+                if (core) {
+                    html += `<div style="margin-top:10px; padding: 8px 10px; background: rgba(255, 71, 87, 0.1); border-left: 3px solid #ff4757; border-radius: 4px;">
+                        <div style="color:#ff4757; font-size:12px; font-weight:bold; margin-bottom:4px;">🔥 本阶段核心冲突</div>
+                        <div style="color:#e0e0e0; font-size:13px;">${escapeHtml(core)}</div>
+                    </div>`;
+                }
+                if (sub.length) {
+                    html += `<div style="margin-top:8px; padding: 8px 10px; background: rgba(255, 165, 2, 0.05); border-left: 3px solid #ffa502; border-radius: 4px;">
+                        <div style="color:#ffa502; font-size:12px; font-weight:bold; margin-bottom:4px;">⚡ 副冲突</div>`;
+                    sub.forEach(s => {
+                        html += `<div style="color:#e0e0e0; font-size:13px;">• ${escapeHtml(typeof s === 'string' ? s : JSON.stringify(s))}</div>`;
+                    });
+                    html += `</div>`;
+                }
+                if (end) {
+                    html += `<div style="margin-top:8px; padding: 8px 10px; background: rgba(46, 213, 115, 0.05); border-left: 3px solid #2ed573; border-radius: 4px;">
+                        <div style="color:#2ed573; font-size:12px; font-weight:bold; margin-bottom:4px;">✨ 阶段结局</div>
+                        <div style="color:#e0e0e0; font-size:13px;">${escapeHtml(end)}</div>
+                    </div>`;
+                }
+                html += `</div></div>`;
+            });
+            html += '</div>';
+            el.innerHTML = html;
+        }
+
+        function renderFullOutline(el, data) {
+            if (!data) {
+                el.innerHTML = '<div class="empty-state">📚 全书大纲尚未生成。<br><span style="font-size:12px;color:#888">请在「优化版管线」启动生成。</span></div>';
+                return;
+            }
+            const title = data.title || '未命名';
+            const genre = data.genre || '未知';
+            const mainConflict = data.main_conflict || data.mainConflict || '';
+            const ending = data.ending_direction || data.endingDirection || {};
+            const volumes = data.volumes || [];
+            const worldSetting = data.world_setting_summary || '';
             let totalChapters = volumes.reduce((sum, v) => sum + (v.chapter_count || 0), 0);
 
             let html = `
                 <div class="outline-header">
-                    <div class="outline-title">${title}</div>
+                    <div class="outline-title">📚 ${escapeHtml(title)}</div>
                     <div class="outline-meta">
-                        <div class="outline-meta-item">
-                            <span class="outline-meta-label">题材:</span>
-                            <span class="outline-meta-value">${genre}</span>
-                        </div>
-                        <div class="outline-meta-item">
-                            <span class="outline-meta-label">卷数:</span>
-                            <span class="outline-meta-value">${volumes.length} 卷</span>
-                        </div>
-                        <div class="outline-meta-item">
-                            <span class="outline-meta-label">总章节:</span>
-                            <span class="outline-meta-value">${totalChapters} 章</span>
-                        </div>
+                        <div class="outline-meta-item"><span class="outline-meta-label">题材:</span><span class="outline-meta-value">${escapeHtml(genre)}</span></div>
+                        <div class="outline-meta-item"><span class="outline-meta-label">卷数:</span><span class="outline-meta-value">${volumes.length} 卷</span></div>
+                        <div class="outline-meta-item"><span class="outline-meta-label">总章节:</span><span class="outline-meta-value">${totalChapters} 章</span></div>
                     </div>
+                    ${worldSetting ? `<div style="margin-top:10px; padding: 10px; background:#0a0a15; border-radius: 6px; color:#cbd5ff; line-height:1.6; font-size:13px;">${escapeHtml(worldSetting)}</div>` : ''}
                 </div>
             `;
-
             if (mainConflict) {
-                html += `
-                    <div class="conflict-card">
-                        <div class="conflict-title">🔥 核心冲突</div>
-                        <div class="conflict-text">${mainConflict}</div>
-                    </div>
-                `;
+                html += `<div class="conflict-card"><div class="conflict-title">🔥 核心冲突</div><div class="conflict-text">${escapeHtml(mainConflict)}</div></div>`;
             }
-
-            if (ending.summary) {
-                html += `
-                    <div class="ending-card">
-                        <div class="ending-title">✨ 结局方向</div>
-                        <div class="ending-text">
-                            <div style="margin-bottom:8px">
-                                <span style="color:#888">类型:</span>
-                                <span style="color:#e0e0e0;margin-left:4px">${ending.type || '未知'}</span>
-                            </div>
-                            <div>${ending.summary}</div>
-                        </div>
+            if (ending && (ending.summary || ending.type)) {
+                html += `<div class="ending-card">
+                    <div class="ending-title">✨ 结局方向</div>
+                    <div class="ending-text">
+                        ${ending.type ? `<div style="margin-bottom:6px"><span style="color:#888">类型:</span> <span style="color:#e0e0e0">${escapeHtml(ending.type)}</span></div>` : ''}
+                        ${ending.summary ? `<div>${escapeHtml(ending.summary)}</div>` : ''}
                     </div>
-                `;
+                </div>`;
             }
 
             html += '<div style="margin-top:24px">';
@@ -856,56 +1528,158 @@
                 const volTitle = vol.volume_title || `第${volId}卷`;
                 const theme = vol.theme || '';
                 const chapterCount = vol.chapter_count || 0;
-                const events = vol.main_events || [];
+                const events = vol.events || vol.main_events || '';
+                const characterArcs = vol.character_arcs || '';
+                const mainConflict = vol.main_conflict || vol.mainConflict || '';
+                const endDir = vol.ending_direction || vol.endingDirection || '';
 
-                html += `
-                    <div class="volume-card">
-                        <div class="volume-header" onclick="toggleVolume(${idx})">
-                            <div class="volume-title">
-                                <span class="expand-icon" id="icon-${idx}">▶</span>
-                                第${volId}卷：${volTitle}
-                            </div>
-                            ${theme ? `<div class="volume-theme">${theme}</div>` : ''}
-                            <div class="volume-info">
-                                <div class="volume-info-item">📖 ${chapterCount} 章</div>
-                                <div class="volume-info-item">🎯 ${events.length} 个主要事件</div>
-                            </div>
-                        </div>
-                        <div class="volume-content" id="vol-content-${idx}">
-                            <div class="chapter-list">
-                `;
-
-                events.forEach((evt, eIdx) => {
-                    const eventName = evt.event_name || `事件${eIdx + 1}`;
-                    const desc = evt.description || '';
-                    html += `
-                        <div class="chapter-item">
-                            <div class="chapter-title">📌 ${eventName}</div>
-                            ${desc ? `<div class="chapter-summary">${desc}</div>` : ''}
-                        </div>
-                    `;
-                });
-
-                html += `
-                            </div>
+                html += `<div class="volume-card">
+                    <div class="volume-header" onclick="toggleVolume('fo-${idx}')">
+                        <div class="volume-title"><span class="expand-icon" id="icon-fo-${idx}">▶</span>第${volId}卷：${escapeHtml(volTitle)}</div>
+                        ${theme ? `<div class="volume-theme">${escapeHtml(theme)}</div>` : ''}
+                        <div class="volume-info">
+                            <div class="volume-info-item">📖 ${chapterCount} 章</div>
                         </div>
                     </div>
-                `;
+                    <div class="volume-content" id="vol-content-fo-${idx}">`;
+                if (events) {
+                    html += `<div style="padding: 10px 12px; background:#0a0a15; border-radius: 6px; margin-bottom: 10px;">
+                        <div style="color:#a0a8ff; font-size:13px; font-weight:bold; margin-bottom: 6px;">📌 主要事件</div>
+                        <div style="color:#e0e0e0; font-size:13px; line-height: 1.7;">${escapeHtml(events)}</div>
+                    </div>`;
+                }
+                if (characterArcs) {
+                    html += `<div style="padding: 10px 12px; background: rgba(160, 168, 255, 0.05); border-left: 3px solid #a0a8ff; border-radius: 4px; margin-bottom: 10px;">
+                        <div style="color:#a0a8ff; font-size:13px; font-weight:bold; margin-bottom: 6px;">👥 角色弧线</div>
+                        <div style="color:#e0e0e0; font-size:13px; line-height: 1.7;">${escapeHtml(characterArcs)}</div>
+                    </div>`;
+                }
+                if (mainConflict) {
+                    html += `<div style="padding: 8px 12px; background: rgba(255, 71, 87, 0.08); border-left: 3px solid #ff4757; border-radius: 4px; margin-bottom: 10px;">
+                        <div style="color:#ff4757; font-size:12px; font-weight:bold; margin-bottom: 4px;">🔥 卷核心冲突</div>
+                        <div style="color:#e0e0e0; font-size:13px;">${escapeHtml(mainConflict)}</div>
+                    </div>`;
+                }
+                if (endDir) {
+                    html += `<div style="padding: 8px 12px; background: rgba(46, 213, 115, 0.05); border-left: 3px solid #2ed573; border-radius: 4px;">
+                        <div style="color:#2ed573; font-size:12px; font-weight:bold; margin-bottom: 4px;">✨ 卷结局方向</div>
+                        <div style="color:#e0e0e0; font-size:13px;">${escapeHtml(endDir)}</div>
+                    </div>`;
+                }
+                html += `</div></div>`;
             });
             html += '</div>';
-
             el.innerHTML = html;
         }
 
-        function toggleVolume(idx) {
-            const content = document.getElementById(`vol-content-${idx}`);
-            const icon = document.getElementById(`icon-${idx}`);
+        function renderCharactersJson(el, data) {
+            if (!data) {
+                el.innerHTML = '<div class="empty-state">👥 角色信息表尚未生成。<br><span style="font-size:12px;color:#888">请在「角色表格」中编辑，或启动优化版管线生成。</span></div>';
+                return;
+            }
+            let chars = [];
+            if (Array.isArray(data)) chars = data;
+            else if (Array.isArray(data.characters)) chars = data.characters;
+            else if (typeof data === 'object') chars = Object.values(data).filter(v => v && typeof v === 'object');
+
+            if (chars.length === 0) {
+                el.innerHTML = '<div class="empty-state">角色信息表为空。</div>';
+                return;
+            }
+            let html = `<div style="color:#a0a8ff; font-size:14px; margin-bottom:10px;">👥 共 ${chars.length} 个角色</div>`;
+            html += `<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px;">`;
+            chars.forEach((c, i) => {
+                const name = c.name || c.姓名 || `角色${i + 1}`;
+                const gender = c.gender || c.性别 || '';
+                const role = c.role_type || c.类型 || c.identity || '';
+                const identity = c.identity || c.身份 || '';
+                const personality = Array.isArray(c.personality) ? c.personality.join('、') : (c.personality || c.性格 || '');
+                const power = c.initial_power || c.power || c.实力 || '';
+                const background = c.background || c.来历 || '';
+                const tags = c.tags || [];
+                html += `<div class="volume-card" style="margin: 0;">
+                    <div style="padding: 14px 16px;">
+                        <div style="display:flex; align-items:center; gap:8px; margin-bottom: 8px;">
+                            <span style="color:#7b8cff; font-size:16px; font-weight:bold;">${escapeHtml(name)}</span>
+                            ${gender ? `<span style="color:#888; font-size:12px;">${escapeHtml(gender)}</span>` : ''}
+                            ${role ? `<span style="background:#2a2a4e; color:#7b8cff; padding:2px 8px; border-radius: 4px; font-size:11px;">${escapeHtml(role)}</span>` : ''}
+                        </div>
+                        ${identity ? `<div style="color:#cbd5ff; font-size:13px; margin-bottom:6px;"><strong>身份：</strong>${escapeHtml(identity)}</div>` : ''}
+                        ${personality ? `<div style="color:#cbd5ff; font-size:13px; margin-bottom:6px;"><strong>性格：</strong>${escapeHtml(personality)}</div>` : ''}
+                        ${power ? `<div style="color:#cbd5ff; font-size:13px; margin-bottom:6px;"><strong>实力：</strong>${escapeHtml(power)}</div>` : ''}
+                        ${background ? `<div style="color:#aaa; font-size:12px; line-height: 1.6; margin-top:8px; padding-top:8px; border-top: 1px solid #333;"><strong>来历：</strong>${escapeHtml(background)}</div>` : ''}
+                        ${tags.length ? `<div style="margin-top: 6px;">${tags.map(t => `<span style="background:#2a2a4e; color:#7b8cff; padding:2px 8px; border-radius: 4px; font-size:11px; margin-right:4px;">${escapeHtml(t)}</span>`).join('')}</div>` : ''}
+                    </div>
+                </div>`;
+            });
+            html += `</div>`;
+            el.innerHTML = html;
+        }
+
+        // 保留原 renderOutline 兼容（章节目录视图）
+        function renderOutline(el, data) {
+            if (!data) {
+                el.innerHTML = '<div class="empty-state">📑 传统章节目录尚未生成。</div>';
+                return;
+            }
+            // 旧管线结构
+            if (data.volumes) {
+                const volumes = data.volumes || [];
+                const totalChapters = volumes.reduce((sum, v) => sum + (v.chapter_count || 0), 0);
+                let html = `
+                    <div class="outline-header">
+                        <div class="outline-title">${escapeHtml(data.title || '未命名')}</div>
+                        <div class="outline-meta">
+                            <div class="outline-meta-item"><span class="outline-meta-label">题材:</span><span class="outline-meta-value">${escapeHtml(data.genre || '未知')}</span></div>
+                            <div class="outline-meta-item"><span class="outline-meta-label">卷数:</span><span class="outline-meta-value">${volumes.length} 卷</span></div>
+                            <div class="outline-meta-item"><span class="outline-meta-label">总章节:</span><span class="outline-meta-value">${totalChapters} 章</span></div>
+                        </div>
+                    </div>
+                `;
+                html += '<div style="margin-top:24px">';
+                volumes.forEach((vol, idx) => {
+                    const volId = vol.volume_id || (idx + 1);
+                    const volTitle = vol.volume_title || `第${volId}卷`;
+                    const theme = vol.theme || '';
+                    const events = vol.main_events || [];
+                    html += `<div class="volume-card">
+                        <div class="volume-header" onclick="toggleVolume('ol-${idx}')">
+                            <div class="volume-title"><span class="expand-icon" id="icon-ol-${idx}">▶</span>第${volId}卷：${escapeHtml(volTitle)}</div>
+                            ${theme ? `<div class="volume-theme">${escapeHtml(theme)}</div>` : ''}
+                            <div class="volume-info"><div class="volume-info-item">📖 ${vol.chapter_count || 0} 章</div><div class="volume-info-item">🎯 ${events.length} 个事件</div></div>
+                        </div>
+                        <div class="volume-content" id="vol-content-ol-${idx}">
+                            <div class="chapter-list">`;
+                    events.forEach((evt, eIdx) => {
+                        const eventName = evt.event_name || `事件${eIdx + 1}`;
+                        const desc = evt.description || '';
+                        html += `<div class="chapter-item"><div class="chapter-title">📌 ${escapeHtml(eventName)}</div>${desc ? `<div class="chapter-summary">${escapeHtml(desc)}</div>` : ''}</div>`;
+                    });
+                    html += `</div></div></div>`;
+                });
+                html += '</div>';
+                el.innerHTML = html;
+                return;
+            }
+            // 旧管线纯数据
+            el.innerHTML = `<pre style="white-space:pre-wrap; color:#aaa; font-size:13px;">${escapeHtml(JSON.stringify(data, null, 2))}</pre>`;
+        }
+
+        // 旧 loadOutline 仍需保留以防其他地方调用
+        async function loadOutline() {
+            await loadStoryline();
+        }
+
+        function toggleVolume(key) {
+            const content = document.getElementById(`vol-content-${key}`);
+            const icon = document.getElementById(`icon-${key}`);
+            if (!content) return;
             if (content.classList.contains('expanded')) {
                 content.classList.remove('expanded');
-                icon.classList.remove('rotated');
+                if (icon) icon.classList.remove('rotated');
             } else {
                 content.classList.add('expanded');
-                icon.classList.add('rotated');
+                if (icon) icon.classList.add('rotated');
             }
         }
 
@@ -1029,11 +1803,11 @@
                 antagonist_names: document.getElementById('opt-antagonists').value.split(/[,，]/).map(s => s.trim()).filter(s => s),
                 volume_count: parseInt(document.getElementById('opt-volumes').value) || 3,
                 chapters_per_volume: parseInt(document.getElementById('opt-chapters').value) || 5,
-                slices_per_chapter: parseInt(document.getElementById('opt-slices').value) || 20,
+                slices_per_chapter: parseInt(document.getElementById('opt-slices').value) || 10,
                 concurrency_config: {
                     character_concurrency: parseInt(document.getElementById('opt-char-concurrency').value) || characterCount,
                     outline_concurrency: parseInt(document.getElementById('opt-outline-concurrency').value) || 5,
-                    chapter_concurrency: parseInt(document.getElementById('opt-chapter-concurrency').value) || 4,
+                    chapter_concurrency: parseInt(document.getElementById('opt-chapter-concurrency').value) || 8,
                     batch_size: parseInt(document.getElementById('opt-batch-size').value) || 8,
                 },
                 extra_context: document.getElementById('opt-extra-context').value.trim(),
@@ -1080,7 +1854,7 @@
                 concurrency_config: {
                     character_concurrency: 6,
                     outline_concurrency: 5,
-                    chapter_concurrency: 4,
+                    chapter_concurrency: 8,
                     batch_size: 8,
                 },
                 extra_context: document.getElementById('auto-extra-context').value.trim(),

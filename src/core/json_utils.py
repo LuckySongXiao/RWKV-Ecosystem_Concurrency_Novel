@@ -163,6 +163,23 @@ def balance_brackets(text: str) -> str:
     return text
 
 
+def _close_open_strings(text: str) -> str:
+    in_str = False
+    esc = False
+    for i, ch in enumerate(text):
+        if esc:
+            esc = False
+            continue
+        if ch == '\\' and in_str:
+            esc = True
+            continue
+        if ch == '"':
+            in_str = not in_str
+    if in_str:
+        text = text + '"'
+    return text
+
+
 def repair_truncated_json(text: str) -> Optional[str]:
     text = text.strip()
 
@@ -175,12 +192,28 @@ def repair_truncated_json(text: str) -> Optional[str]:
             if ch in ('{', '['):
                 idx = i
                 break
-        if idx >= 0:
+        if idx > 0:
+            prepended = '{' + text
+            prepended_cleaned = sanitize_json_text(prepended)
+            prepended_cleaned = _close_open_strings(prepended_cleaned)
+            try:
+                json.loads(prepended_cleaned)
+                return prepended_cleaned
+            except json.JSONDecodeError:
+                pass
+            balanced_prepended = balance_brackets(prepended_cleaned)
+            balanced_prepended = _close_open_strings(balanced_prepended)
+            try:
+                json.loads(balanced_prepended)
+                return balanced_prepended
+            except json.JSONDecodeError:
+                pass
             text = text[idx:]
-        else:
+        elif idx < 0:
             return None
 
     cleaned = sanitize_json_text(text)
+    cleaned = _close_open_strings(cleaned)
 
     try:
         json.loads(cleaned)
@@ -189,6 +222,7 @@ def repair_truncated_json(text: str) -> Optional[str]:
         pass
 
     balanced = balance_brackets(cleaned)
+    balanced = _close_open_strings(balanced)
     try:
         json.loads(balanced)
         return balanced
@@ -383,7 +417,12 @@ def parse_outline_output(raw_text: str) -> Tuple[Optional[dict], str]:
         return None, "failed"
 
     if isinstance(parsed, list) and len(parsed) > 0:
-        parsed = parsed[0] if isinstance(parsed[0], dict) else {"volumes": parsed}
+        if all(isinstance(item, dict) and ("volume_id" in item or "volume_title" in item) for item in parsed):
+            parsed = {"volumes": parsed}
+        elif isinstance(parsed[0], dict) and "volume_id" not in parsed[0]:
+            parsed = parsed[0]
+        else:
+            parsed = {"volumes": parsed}
 
     if not isinstance(parsed, dict):
         return None, "failed"
@@ -440,11 +479,29 @@ def parse_volumes_output(raw_text: str) -> Tuple[list, str]:
     return [], "failed"
 
 
+def _deduplicate_events(events_text: str) -> str:
+    seen = set()
+    parts = events_text.split(';')
+    deduped = []
+    for p in parts:
+        p = p.strip()
+        if p and p not in seen:
+            seen.add(p)
+            deduped.append(p)
+    return ';'.join(deduped)
+
+
 def extract_volumes_from_truncated(raw_text: str) -> list:
     volumes = []
+    seen_vol_ids = set()
 
     vol_pattern = r'\{\s*"volume_id"\s*:\s*(\d+)'
     for m in re.finditer(vol_pattern, raw_text):
+        vol_id_str = m.group(1)
+        if vol_id_str in seen_vol_ids:
+            continue
+        seen_vol_ids.add(vol_id_str)
+
         start = m.start()
         depth = 0
         in_str = False
@@ -475,14 +532,65 @@ def extract_volumes_from_truncated(raw_text: str) -> list:
             block = raw_text[start:end + 1]
             try:
                 vol = json.loads(block)
-                volumes.append(vol)
+                if isinstance(vol, dict):
+                    events = vol.get("events", "")
+                    if isinstance(events, str) and events:
+                        vol["events"] = _deduplicate_events(events)
+                    volumes.append(vol)
             except json.JSONDecodeError:
                 repaired = repair_truncated_json(block)
                 if repaired:
                     try:
                         vol = json.loads(repaired)
-                        volumes.append(vol)
+                        if isinstance(vol, dict):
+                            events = vol.get("events", "")
+                            if isinstance(events, str) and events:
+                                vol["events"] = _deduplicate_events(events)
+                            volumes.append(vol)
                     except json.JSONDecodeError:
                         pass
+
+    if not volumes:
+        volumes = _extract_volumes_from_text_blocks(raw_text)
+
+    return volumes
+
+
+def _extract_volumes_from_text_blocks(raw_text: str) -> list:
+    volumes = []
+    vol_sections = re.split(r'(?="volume_id"\s*:\s*\d+)', raw_text)
+
+    for section in vol_sections:
+        section = section.strip()
+        if not section or 'volume_id' not in section:
+            continue
+
+        vol = {}
+        vol_id_m = re.search(r'"volume_id"\s*:\s*(\d+)', section)
+        if vol_id_m:
+            vol["volume_id"] = int(vol_id_m.group(1))
+
+        vol_title_m = re.search(r'"volume_title"\s*:\s*"([^"]*)"', section)
+        if vol_title_m:
+            vol["volume_title"] = vol_title_m.group(1)
+
+        theme_m = re.search(r'"theme"\s*:\s*"([^"]*)"', section)
+        if theme_m:
+            vol["theme"] = theme_m.group(1)
+
+        events_m = re.search(r'"events"\s*:\s*"([^"]*(?:"[^"]*"[^"]*)*)"', section)
+        if events_m:
+            vol["events"] = _deduplicate_events(events_m.group(1))
+
+        ch_count_m = re.search(r'"chapter_count"\s*:\s*(\d+)', section)
+        if ch_count_m:
+            vol["chapter_count"] = int(ch_count_m.group(1))
+
+        if vol.get("volume_id") is not None:
+            vol.setdefault("volume_title", f"第{vol['volume_id']}卷")
+            vol.setdefault("theme", "")
+            vol.setdefault("chapter_count", 20)
+            vol.setdefault("events", "")
+            volumes.append(vol)
 
     return volumes

@@ -444,44 +444,35 @@ class RWKVServiceManager:
 
         if wait_ready:
             print(f"[INFO] 等待服务就绪 (超时: {timeout}秒)...")
+            print(f"[INFO] 注意: RWKV Lightning 内部会先加载部分权重做预热，")
+            print(f"[INFO]       再加载完整模型到 GPU，因此显存会出现 '小→大' 的阶梯。")
+            print(f"[INFO]       我们会持续发送测试对话直到真正可推理为止。")
             start_time = time.time()
-            model_loaded = False
+            test_count = 0
+            last_vram = 0
+            last_print_time = 0.0
             while time.time() - start_time < timeout:
                 vram = self._get_gpu_vram_mb()
                 vram_info = f" [显存: {vram}MB]" if vram is not None else ""
 
-                if not model_loaded:
-                    if vram is not None and vram >= 500:
-                        model_loaded = True
-                        print(f"\n[INFO] 模型已加载到GPU{vram_info}")
-                    elif vram is None and self._is_port_listening() and self.is_service_running():
-                        model_loaded = True
-                        print(f"\n[INFO] 服务端口已响应")
-                    elif self._is_port_listening():
-                        print(f"\r[INFO] 端口已监听，等待模型加载{vram_info}...", end="", flush=True)
-                    else:
-                        print(".", end="", flush=True)
-                    time.sleep(3)
-                    continue
+                now = time.time()
+                # 每 3 秒打印一次状态
+                if now - last_print_time >= 3.0:
+                    last_print_time = now
+                    print(f"\r[{int(now - start_time):3d}s]{vram_info} 发送测试对话 #{test_count + 1}...", end="", flush=True)
+                    last_vram = vram if vram is not None else 0
 
-                if model_loaded:
-                    print(f"[INFO] 模型已加载{vram_info}，发送测试对话...")
-                    if self._test_chat_completion():
-                        print(f"[INFO] RWKV 服务已就绪{vram_info}")
-                        return True
-                    else:
-                        print(f"[INFO] 测试对话未响应，继续等待{vram_info}...")
-                        time.sleep(5)
-                        continue
+                test_count += 1
+                if self._test_chat_completion():
+                    print(f"\n[INFO] RWKV 服务已就绪{vram_info} (耗时 {int(time.time() - start_time)}s, 测试 {test_count} 次)")
+                    return True
+                time.sleep(3)
 
             vram = self._get_gpu_vram_mb()
             vram_info = f" [显存: {vram}MB]" if vram is not None else ""
-            if model_loaded:
-                print(f"\n[WARNING] 模型已加载但测试对话超时{vram_info}")
-                print("[WARNING] 可能原因: 模型格式不兼容（如BFloat16），请用 convert_safetensors.py 重新转换")
-                print("[WARNING] 命令: python scripts/convert_safetensors.py --input <.pth> --output <.st>")
-            else:
-                print(f"\n[WARNING] 服务启动超时{vram_info}")
+            print(f"\n[WARNING] 服务启动超时 (测试 {test_count} 次均未响应){vram_info}")
+            print("[WARNING] 可能原因: 模型格式不兼容（如BFloat16），请用 convert_safetensors.py 重新转换")
+            print("[WARNING] 命令: python scripts/convert_safetensors.py --input <.pth> --output <.st>")
             return False
 
         return True

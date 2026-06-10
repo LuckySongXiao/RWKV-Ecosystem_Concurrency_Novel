@@ -6,6 +6,7 @@
 
 import json
 import os
+import re
 import time
 from typing import Dict, List, Optional
 from src.core.config import SamplingParams, PipelineConfig
@@ -268,6 +269,10 @@ Assistant: {{"name":"""
         parsed, status = robust_json_parse(text, first_only=True)
 
         if parsed is None:
+            self._logger.warning("角色信息表JSON解析失败，尝试正则提取字段")
+            parsed = self._extract_character_fields_regex(text)
+
+        if parsed is None:
             self._logger.error(f"解析角色信息表失败: 无法解析JSON (原始内容前100字: {result[:100]})")
             return None
 
@@ -306,3 +311,28 @@ Assistant: {{"name":"""
             char["role_type"] = "supporting"
 
         return char
+
+    def _extract_character_fields_regex(self, text: str) -> Optional[Dict]:
+        """当JSON解析完全失败时，使用正则表达式提取角色字段"""
+        result = {}
+        field_patterns = {
+            "name": [r'"name"\s*:\s*"([^"]*)"', r'"姓名"\s*:\s*"([^"]*)"'],
+            "identity": [r'"identity"\s*:\s*"([^"]*)"', r'"身份"\s*:\s*"([^"]*)"'],
+            "personality": [r'"personality"\s*:\s*"([^"]*)"', r'"性格"\s*:\s*"([^"]*)"'],
+            "ability": [r'"ability"\s*:\s*"([^"]*)"', r'"能力"\s*:\s*"([^"]*)"'],
+            "background": [r'"background"\s*:\s*"([^"]*)"', r'"背景"\s*:\s*"([^"]*)"'],
+            "motivation": [r'"motivation"\s*:\s*"([^"]*)"', r'"动机"\s*:\s*"([^"]*)"'],
+            "role_type": [r'"role_type"\s*:\s*"([^"]*)"', r'"角色定位"\s*:\s*"([^"]*)"'],
+        }
+
+        for field, patterns in field_patterns.items():
+            for pattern in patterns:
+                m = re.search(pattern, text)
+                if m:
+                    result[field] = m.group(1)
+                    break
+
+        if not result.get("name"):
+            return None
+
+        return result

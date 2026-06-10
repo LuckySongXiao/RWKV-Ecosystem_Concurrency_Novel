@@ -50,6 +50,7 @@
         <a href="/create">小说创作</a>
         <a href="/pipeline" style="background:#2a2a4e">管线控制</a>
         <a href="/matrix">章节并发矩阵</a>
+        <a href="/bookshelf">书架</a>
         <a href="/world">世界状态</a>
         <a href="/roleplay">角色扮演</a>
         <a href="/review">审核裁决</a>
@@ -85,7 +86,7 @@
                 </div>
                 <div>
                     <label style="color:#a0a8ff; font-size:13px; display:block; margin-bottom:6px;">章节切片数</label>
-                    <input type="number" id="opt-slices-per-ch" value="20" min="4" max="40" style="width:100%; background:#0d0d1a; border:1px solid #333; color:#e0e0e0; padding:8px 12px; border-radius:6px; font-size:14px;">
+                    <input type="number" id="opt-slices-per-ch" value="10" min="3" max="40" style="width:100%; background:#0d0d1a; border:1px solid #333; color:#e0e0e0; padding:8px 12px; border-radius:6px; font-size:14px;">
                 </div>
             </div>
             <div style="margin-bottom:16px;">
@@ -278,7 +279,7 @@
             const charCount = parseInt(document.getElementById('opt-char-count').value) || 6;
             const volumeCount = parseInt(document.getElementById('opt-volume-count').value) || 3;
             const chaptersPerVol = parseInt(document.getElementById('opt-chapters-per-vol').value) || 5;
-            const slicesPerCh = parseInt(document.getElementById('opt-slices-per-ch').value) || 20;
+            const slicesPerCh = parseInt(document.getElementById('opt-slices-per-ch').value) || 10;
             const protagonists = document.getElementById('opt-protagonists').value.trim();
 
             const statusEl = document.getElementById('opt-pipeline-status');
@@ -300,7 +301,7 @@
                         concurrency_config: {
                             character_concurrency: charCount,
                             outline_concurrency: chaptersPerVol,
-                            chapter_concurrency: 4,
+                            chapter_concurrency: volumeCount * chaptersPerVol,
                             batch_size: 8,
                         },
                         protagonist_names: protagonists ? protagonists.split(/[,，]/).map(s => s.trim()).filter(Boolean) : [],

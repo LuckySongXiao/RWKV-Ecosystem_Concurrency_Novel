@@ -89,6 +89,15 @@ class FileManager:
             return self.read_markdown(path)
         return ""
 
+    def read_active_skills(self) -> str:
+        """读取当前激活的 SKILL.md 文件内容（拼接）"""
+        try:
+            from src.core.skill_manager import SkillManager
+        except ImportError:
+            return ""
+        sm = SkillManager(self.context_dir)
+        return sm.get_active_content()
+
     # ---- Output paths ----
     def get_output_dir(self) -> str:
         """获取输出目录路径"""

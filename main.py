@@ -7,6 +7,9 @@
     python main.py --config pipeline.config.json --web --port 5000  # 指定端口
 """
 
+from gevent import monkey
+monkey.patch_all()
+
 import argparse
 import os
 import sys

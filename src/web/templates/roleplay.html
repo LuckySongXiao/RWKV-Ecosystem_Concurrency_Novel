@@ -25,22 +25,35 @@
         .btn.danger { background: #ff4757; }
         .btn.success { background: #2ed573; }
         .btn.warn { background: #ffa502; color: #1a1a2e; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
         #chat-area { background: #0d0d1a; border: 1px solid #333; border-radius: 6px; padding: 16px; height: 500px; overflow-y: auto; flex: 1; }
-        .msg { margin: 12px 0; padding: 12px 16px; border-radius: 8px; font-size: 14px; line-height: 1.6; }
+        .msg { margin: 12px 0; padding: 12px 16px; border-radius: 8px; font-size: 14px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
         .msg.user { background: #1e3a5f; text-align: right; margin-left: 20%; }
         .msg.character { background: #1a2e1a; margin-right: 20%; }
         .msg .name { font-size: 12px; color: #888; margin-bottom: 6px; font-weight: bold; }
-        .char-list { max-height: 400px; overflow-y: auto; }
+        .char-list { max-height: 350px; overflow-y: auto; }
         .char-item { background: #16213e; border: 1px solid #333; border-radius: 6px; padding: 12px; margin: 8px 0; cursor: pointer; transition: all .2s; }
         .char-item:hover { border-color: #7b8cff; background: #1a2a4e; }
         .char-item.selected { border-color: #2ed573; background: #1a3a2a; }
         .char-item .name { color: #a0a8ff; font-weight: bold; font-size: 14px; }
         .char-item .info { color: #888; font-size: 12px; margin-top: 4px; }
+        .char-item .role-badge { display: inline-block; background: #2a2a4e; color: #7b8cff; padding: 2px 8px; border-radius: 4px; font-size: 11px; margin-left: 6px; }
         .char-actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
         .empty-state { text-align: center; padding: 40px; color: #666; }
         .mode-tabs { display: flex; gap: 8px; margin-bottom: 16px; }
         .mode-tab { padding: 8px 16px; background: #16213e; border: 1px solid #333; border-radius: 6px; cursor: pointer; color: #888; font-size: 13px; }
         .mode-tab.active { background: #2a2a4e; color: #7b8cff; border-color: #7b8cff; }
+        .novel-selector { margin-bottom: 12px; }
+        .novel-option { background: #16213e; border: 1px solid #333; border-radius: 6px; padding: 10px 14px; margin: 6px 0; cursor: pointer; transition: all .2s; }
+        .novel-option:hover { border-color: #7b8cff; }
+        .novel-option.selected { border-color: #2ed573; background: #1a3a2a; }
+        .novel-option .title { color: #a0a8ff; font-weight: bold; font-size: 14px; }
+        .novel-option .count { color: #888; font-size: 12px; }
+        .detail-row { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #2a2a3e; }
+        .detail-row .key { color: #888; font-size: 12px; }
+        .detail-row .val { color: #e0e0e0; font-size: 12px; text-align: right; max-width: 180px; }
+        .detail-block { margin-top: 8px; padding: 8px; background: #0d0d1a; border-radius: 4px; font-size: 12px; color: #ccc; line-height: 1.5; }
+        .loading { text-align: center; padding: 20px; color: #7b8cff; }
     </style>
 </head>
 <body>
@@ -48,16 +61,23 @@
         <a href="/">首页</a>
         <a href="/create">小说创作</a>
         <a href="/pipeline">管线控制</a>
+        <a href="/bookshelf">书架</a>
         <a href="/world">世界状态</a>
         <a href="/roleplay" style="background:#2a2a4e">角色扮演</a>
         <a href="/review">审核裁决</a>
     </nav>
-    <h1>角色扮演</h1>
+    <h1>🎭 角色扮演</h1>
     <div class="sidebar">
+        <div class="card">
+            <h2>选择小说</h2>
+            <div id="novel-list" class="novel-selector">
+                <div class="empty-state">加载中...</div>
+            </div>
+        </div>
         <div class="card">
             <h2>角色列表</h2>
             <div class="char-list" id="char-list">
-                <div class="empty-state">加载中...</div>
+                <div class="empty-state">请先选择小说</div>
             </div>
         </div>
         <div class="card" id="char-detail-card" style="display:none;">
@@ -68,24 +88,16 @@
             <h2>场景设置</h2>
             <label>场景上下文</label>
             <textarea id="scene-context" placeholder="描述当前场景，如：在青云宗大殿中，凌云面对长老的质问..."></textarea>
-            <label>世界状态注入</label>
-            <select id="world-state-inject" style="width:100%; background:#0d0d1a; border:1px solid #333; color:#e0e0e0; padding:8px; border-radius:6px; font-size:13px;">
-                <option value="none">不注入</option>
-                <option value="character">仅角色状态</option>
-                <option value="full">角色+势力+伏笔</option>
-            </select>
             <div class="char-actions">
                 <button class="btn" onclick="resetSession()">重置会话</button>
-                <button class="btn warn" onclick="queryWorldState()">查询世界状态</button>
             </div>
         </div>
     </div>
     <div class="main-content">
         <div class="card" style="flex: 1; display: flex; flex-direction: column;">
             <div class="mode-tabs">
-                <div class="mode-tab active" onclick="setMode('dialogue')">对话模式</div>
-                <div class="mode-tab" onclick="setMode('monologue')">内心独白</div>
-                <div class="mode-tab" onclick="setMode('multi')">多人对话</div>
+                <div class="mode-tab active" onclick="setMode('dialogue', this)">对话模式</div>
+                <div class="mode-tab" onclick="setMode('monologue', this)">内心独白</div>
             </div>
             <div id="chat-area">
                 <div class="empty-state">选择一个角色开始对话...</div>
@@ -94,22 +106,76 @@
                 <label>用户输入</label>
                 <textarea id="user-input" placeholder="对角色说话或描述情境..." style="height: 60px;"></textarea>
                 <div style="margin-top: 8px;">
-                    <button class="btn success" onclick="sendMessage()">发送</button>
-                    <button class="btn" onclick="sendMonologue()">内心独白</button>
+                    <button class="btn success" id="send-btn" onclick="sendMessage()">发送</button>
+                    <button class="btn" id="monologue-btn" onclick="sendMonologue()">内心独白</button>
                 </div>
             </div>
         </div>
     </div>
     <script>
         let selectedCharId = '';
+        let selectedCharName = '';
+        let currentNovelDir = '';
+        let currentNovelName = '';
         let history = '';
         let currentMode = 'dialogue';
         let characters = [];
+        let novels = [];
+        let isSending = false;
+
+        async function loadNovels() {
+            try {
+                const r = await fetch('/api/roleplay/novels');
+                const d = await r.json();
+                novels = d.novels || [];
+                renderNovelList();
+            } catch(e) {
+                document.getElementById('novel-list').innerHTML = '<div class="empty-state">无法加载小说列表</div>';
+            }
+        }
+
+        function renderNovelList() {
+            const el = document.getElementById('novel-list');
+            if (!novels.length) {
+                el.innerHTML = '<div class="empty-state">暂无小说。请先运行管线生成小说。</div>';
+                return;
+            }
+            let html = '';
+            novels.forEach((n, idx) => {
+                const selected = n.path === currentNovelDir ? 'selected' : '';
+                const displayName = n.name.replace('草稿_', '');
+                html += `<div class="novel-option ${selected}" data-idx="${idx}" onclick="selectNovel(${idx})">
+                    <div class="title">${displayName}</div>
+                    <div class="count">${n.character_count} 个角色</div>
+                </div>`;
+            });
+            el.innerHTML = html;
+        }
+
+        async function selectNovel(idx) {
+            const n = novels[idx];
+            if (!n) return;
+            currentNovelDir = n.path;
+            currentNovelName = n.name.replace('草稿_', '');
+            selectedCharId = '';
+
+            selectedCharName = '';
+            history = '';
+            renderNovelList();
+            await loadCharacters();
+        }
 
         async function loadCharacters() {
+            if (!currentNovelDir) {
+                document.getElementById('char-list').innerHTML = '<div class="empty-state">请先选择小说</div>';
+                return;
+            }
+            document.getElementById('char-list').innerHTML = '<div class="loading">加载角色中...</div>';
             try {
-                const r = await fetch('/api/world/characters');
-                characters = await r.json();
+                const r = await fetch('/api/roleplay/characters?novel_dir=' + encodeURIComponent(currentNovelDir));
+                const d = await r.json();
+                characters = d.characters || [];
+                currentNovelName = d.novel_name || currentNovelName;
                 renderCharList();
             } catch(e) {
                 document.getElementById('char-list').innerHTML = '<div class="empty-state">无法加载角色列表</div>';
@@ -119,52 +185,60 @@
         function renderCharList() {
             const el = document.getElementById('char-list');
             if (!characters.length) {
-                el.innerHTML = '<div class="empty-state">暂无角色。请先在"小说创作"页面编写设定。</div>';
+                el.innerHTML = '<div class="empty-state">该小说暂无角色数据</div>';
                 return;
             }
             let html = '';
-            characters.forEach(c => {
-                const selected = c.character_id === selectedCharId ? 'selected' : '';
-                html += `<div class="char-item ${selected}" onclick="selectChar('${c.character_id}')">
-                    <div class="name">${c.name}</div>
-                    <div class="info">${c.location || '未知位置'} | ${c.status || '未知状态'}</div>
+            characters.forEach((c, idx) => {
+                const cid = c.character_id || c.name;
+                const selected = cid === selectedCharId ? 'selected' : '';
+                const roleType = c.role_type || '';
+                const identity = c.identity || '';
+                html += `<div class="char-item ${selected}" data-cidx="${idx}" onclick="selectChar(${idx})">
+                    <div class="name">${c.name}${roleType ? '<span class="role-badge">' + roleType + '</span>' : ''}</div>
+                    <div class="info">${identity ? identity.substring(0, 30) : '未知身份'}</div>
                 </div>`;
             });
             el.innerHTML = html;
         }
 
-        function selectChar(charId) {
-            selectedCharId = charId;
+        function selectChar(idx) {
+            const c = characters[idx];
+            if (!c) return;
+            selectedCharId = c.character_id || c.name;
+            selectedCharName = c.name;
             renderCharList();
-            document.getElementById('chat-area').innerHTML = `<div class="empty-state">已选择角色: ${characters.find(c => c.character_id === charId)?.name || charId}</div>`;
+            document.getElementById('chat-area').innerHTML = `<div class="empty-state">已选择角色: ${c.name}，开始对话吧！</div>`;
             history = '';
-            showCharDetail(charId);
+            showCharDetail(idx);
         }
 
-        function showCharDetail(charId) {
-            const char = characters.find(c => c.character_id === charId);
+        function showCharDetail(idx) {
+            const char = characters[idx];
             if (!char) return;
             const card = document.getElementById('char-detail-card');
             const detail = document.getElementById('char-detail');
             card.style.display = 'block';
 
             let html = `<div style="color:#a0a8ff; font-size:16px; font-weight:bold; margin-bottom:8px;">${char.name}</div>`;
-            html += `<div style="color:#888; font-size:12px; margin-bottom:6px;">ID: ${char.character_id}</div>`;
 
-            if (char.attributes) {
-                html += '<div style="margin-top:8px;">';
-                for (const [key, val] of Object.entries(char.attributes)) {
-                    if (key === '描述') continue;
-                    html += `<div style="display:flex; justify-content:space-between; padding:3px 0; border-bottom:1px solid #2a2a3e;"><span style="color:#888; font-size:12px;">${key}</span><span style="color:#e0e0e0; font-size:12px;">${val}</span></div>`;
+            const fields = [
+                ['身份', 'identity'], ['性格', 'personality'], ['能力', 'ability'],
+                ['背景', 'background'], ['动机', 'motivation'], ['角色类型', 'role_type'],
+                ['位置', 'location'], ['状态', 'status']
+            ];
+
+            fields.forEach(([label, key]) => {
+                if (char[key]) {
+                    html += `<div class="detail-row"><span class="key">${label}</span><span class="val">${char[key]}</span></div>`;
                 }
-                html += '</div>';
-            }
+            });
 
-            if (char.location) {
-                html += `<div style="margin-top:8px; color:#888; font-size:12px;">位置: <span style="color:#e0e0e0;">${char.location}</span></div>`;
-            }
-            if (char.status) {
-                html += `<div style="color:#888; font-size:12px;">状态: <span style="color:#e0e0e0;">${char.status}</span></div>`;
+            if (char.attributes && typeof char.attributes === 'object') {
+                html += '<div style="margin-top:8px; color:#888; font-size:12px;">属性:</div>';
+                for (const [key, val] of Object.entries(char.attributes)) {
+                    html += `<div class="detail-row"><span class="key">${key}</span><span class="val">${val}</span></div>`;
+                }
             }
 
             if (char.relationships && char.relationships.length) {
@@ -177,80 +251,116 @@
             detail.innerHTML = html;
         }
 
-        async function queryWorldState() {
-            if (!selectedCharId) { alert('请先选择一个角色'); return; }
-            try {
-                const r = await fetch('/api/world/entity/' + encodeURIComponent(selectedCharId));
-                const d = await r.json();
-                addMessage('系统 [世界状态]', '```json\n' + JSON.stringify(d, null, 2).substring(0, 500) + '\n```', 'character');
-            } catch(e) {
-                addMessage('系统', '查询失败: ' + e.message, 'user');
-            }
-        }
-
-        function setMode(mode) {
+        function setMode(mode, el) {
             currentMode = mode;
             document.querySelectorAll('.mode-tab').forEach(t => t.classList.remove('active'));
-            event.target.classList.add('active');
+            el.classList.add('active');
         }
 
         function addMessage(name, text, cls) {
-            const el = document.getElementById('chat-area');
-            if (el.querySelector('.empty-state')) el.innerHTML = '';
-            el.innerHTML += `<div class="msg ${cls}"><div class="name">${name}</div>${text}</div>`;
-            el.scrollTop = el.scrollHeight;
+            const chatArea = document.getElementById('chat-area');
+            if (chatArea.querySelector('.empty-state')) chatArea.innerHTML = '';
+            const div = document.createElement('div');
+            div.className = 'msg ' + cls;
+            div.innerHTML = `<div class="name">${name}</div>${escapeHtml(text)}`;
+            chatArea.appendChild(div);
+            chatArea.scrollTop = chatArea.scrollHeight;
+        }
+
+        function addLoadingMessage(name) {
+            const chatArea = document.getElementById('chat-area');
+            const div = document.createElement('div');
+            div.className = 'msg character';
+            div.id = 'loading-msg';
+            div.innerHTML = `<div class="name">${name}</div><span class="loading">思考中...</span>`;
+            chatArea.appendChild(div);
+            chatArea.scrollTop = chatArea.scrollHeight;
+        }
+
+        function removeLoadingMessage() {
+            const el = document.getElementById('loading-msg');
+            if (el) el.remove();
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
         }
 
         async function sendMessage() {
             if (!selectedCharId) { alert('请先选择一个角色'); return; }
-            const input = document.getElementById('user-input').value;
-            if (!input.trim()) return;
+            if (isSending) return;
+            const input = document.getElementById('user-input').value.trim();
+            if (!input) return;
+
+            isSending = true;
+            document.getElementById('send-btn').disabled = true;
             addMessage('你', input, 'user');
+            document.getElementById('user-input').value = '';
             const scene = document.getElementById('scene-context').value;
+            addLoadingMessage(selectedCharName);
 
             try {
-                let r;
-                if (currentMode === 'dialogue') {
-                    r = await fetch('/api/roleplay/dialogue', {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({character_id: selectedCharId, scene_context: scene, user_input: input, dialogue_history: history})
-                    });
-                    const d = await r.json();
-                    addMessage(characters.find(c => c.character_id === selectedCharId)?.name || selectedCharId, d.response, 'character');
-                    history += '\n你: ' + input + '\n' + selectedCharId + ': ' + d.response;
-                } else if (currentMode === 'multi') {
-                    r = await fetch('/api/roleplay/multi', {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({character_ids: [selectedCharId], scene_context: scene, topic: input, rounds: 3})
-                    });
-                    const d = await r.json();
-                    for (const [charId, response] of Object.entries(d)) {
-                        addMessage(charId, response, 'character');
-                    }
-                }
-            } catch(e) { addMessage('系统', '错误: ' + e, 'user'); }
-            document.getElementById('user-input').value = '';
+                const r = await fetch('/api/roleplay/dialogue', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        character_id: selectedCharId,
+                        scene_context: scene,
+                        user_input: input,
+                        dialogue_history: history,
+                        novel_dir: currentNovelDir
+                    })
+                });
+                const d = await r.json();
+                removeLoadingMessage();
+                addMessage(selectedCharName, d.response, 'character');
+                history += '\n你: ' + input + '\n' + selectedCharName + ': ' + d.response;
+            } catch(e) {
+                removeLoadingMessage();
+                addMessage('系统', '错误: ' + e, 'user');
+            } finally {
+                isSending = false;
+                document.getElementById('send-btn').disabled = false;
+            }
         }
 
         async function sendMonologue() {
             if (!selectedCharId) { alert('请先选择一个角色'); return; }
+            if (isSending) return;
+            isSending = true;
+            document.getElementById('monologue-btn').disabled = true;
             const scene = document.getElementById('scene-context').value;
+            addLoadingMessage(selectedCharName + ' (内心)');
+
             try {
                 const r = await fetch('/api/roleplay/monologue', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({character_id: selectedCharId, situation: scene || '当前情境'})
+                    body: JSON.stringify({
+                        character_id: selectedCharId,
+                        situation: scene || '当前情境',
+                        novel_dir: currentNovelDir
+                    })
                 });
                 const d = await r.json();
-                addMessage(characters.find(c => c.character_id === selectedCharId)?.name + ' (内心)', d.monologue, 'character');
-            } catch(e) { addMessage('系统', '错误: ' + e, 'user'); }
+                removeLoadingMessage();
+                addMessage(selectedCharName + ' (内心)', d.monologue, 'character');
+            } catch(e) {
+                removeLoadingMessage();
+                addMessage('系统', '错误: ' + e, 'user');
+            } finally {
+                isSending = false;
+                document.getElementById('monologue-btn').disabled = false;
+            }
         }
 
         async function resetSession() {
             if (!selectedCharId) return;
-            await fetch('/api/roleplay/reset/' + selectedCharId, {method: 'POST'});
+            try {
+                await fetch('/api/roleplay/reset/' + encodeURIComponent(selectedCharId), {method: 'POST'});
+            } catch(e) {}
             document.getElementById('chat-area').innerHTML = '<div class="empty-state">会话已重置</div>';
             history = '';
         }
@@ -262,12 +372,12 @@
             }
         });
 
-        loadCharacters();
+        loadNovels();
 
         const rpSocket = io(location.host, { transports: ['websocket'], reconnection: true, reconnectionDelay: 3000 });
         rpSocket.on('progress_update', (data) => {
             if (data.status === 'completed') {
-                loadCharacters();
+                loadNovels();
             }
         });
     </script>

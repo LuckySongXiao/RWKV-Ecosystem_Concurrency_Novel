@@ -3,340 +3,777 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RWKV 超级并发多智能体小说共创框架</title>
+    <title>驾驶舱 - RWKV 小说创作</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
     <script src="/static/js/global-state.js"></script>
     <style>
+        :root {
+            --bg-0: #07070f;
+            --bg-1: #0d0d1a;
+            --bg-2: #14142a;
+            --bg-3: #1a1a2e;
+            --bg-4: #22223e;
+            --line: #2a2a4e;
+            --line-2: #333355;
+            --text: #e0e0e0;
+            --text-2: #aaa;
+            --text-3: #888;
+            --text-4: #555;
+            --primary: #7b8cff;
+            --primary-2: #a0a8ff;
+            --primary-3: #5a6cff;
+            --success: #2ed573;
+            --warn: #ffa502;
+            --danger: #ff4757;
+            --info: #5fcaf7;
+            --purple: #b88dff;
+        }
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Microsoft YaHei', sans-serif; background: #0a0a1a; color: #e0e0e0; min-height: 100vh; }
-        .nav { display: flex; background: #1a1a2e; padding: 12px 24px; gap: 8px; border-bottom: 1px solid #333; flex-wrap: wrap; }
-        .nav a { color: #7b8cff; text-decoration: none; font-size: 14px; padding: 8px 16px; border-radius: 6px; transition: all .2s; }
-        .nav a:hover, .nav a.active { background: #2a2a4e; color: #a0a8ff; }
-        .container { max-width: 1400px; margin: 0 auto; padding: 24px; }
-        h1 { font-size: 28px; color: #7b8cff; margin-bottom: 20px; }
-        h2 { font-size: 18px; color: #a0a8ff; margin: 16px 0 12px; }
-        .card { background: #1a1a2e; border: 1px solid #333; border-radius: 8px; padding: 20px; margin-bottom: 16px; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
-        .stat { text-align: center; padding: 16px; }
-        .stat .num { font-size: 36px; color: #7b8cff; font-weight: bold; }
-        .stat .label { font-size: 13px; color: #888; margin-top: 4px; }
-        .btn { background: #7b8cff; color: #fff; border: none; padding: 10px 24px; border-radius: 6px; cursor: pointer; font-size: 14px; transition: all .2s; }
-        .btn:hover { background: #5a6cff; }
-        .btn.danger { background: #ff4757; }
-        .btn.success { background: #2ed573; }
-        .btn.warn { background: #ffa502; color: #1a1a2e; }
-        #status-bar { background: #16213e; padding: 12px 16px; border-radius: 6px; margin-bottom: 20px; font-size: 14px; display: flex; justify-content: space-between; align-items: center; }
-        .spec-overview { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; margin-top: 16px; }
-        .spec-card { background: #16213e; border: 1px solid #333; border-radius: 8px; padding: 16px; }
-        .spec-card h3 { color: #7b8cff; font-size: 15px; margin-bottom: 8px; }
-        .spec-card p { color: #aaa; font-size: 13px; line-height: 1.6; }
-        .quick-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-top: 16px; }
-        .quick-action { background: #16213e; border: 1px solid #333; border-radius: 8px; padding: 20px; text-align: center; cursor: pointer; transition: all .2s; text-decoration: none; color: #e0e0e0; }
-        .quick-action:hover { background: #2a2a4e; border-color: #7b8cff; }
-        .quick-action .icon { font-size: 32px; margin-bottom: 8px; }
-        .quick-action .text { font-size: 14px; }
-        .model-modal-overlay { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:1000; justify-content:center; align-items:center; }
-        .model-modal-overlay.active { display:flex; }
-        .model-modal { background:#1a1a2e; border:1px solid #7b8cff; border-radius:12px; padding:28px; max-width:700px; width:90%; max-height:80vh; overflow-y:auto; }
-        .model-modal h2 { color:#7b8cff; font-size:20px; margin:0 0 20px 0; }
-        .model-item { background:#16213e; border:1px solid #333; border-radius:8px; padding:16px; margin-bottom:12px; cursor:pointer; transition:all .2s; display:grid; grid-template-columns:1fr auto; gap:12px; align-items:center; }
-        .model-item:hover { border-color:#7b8cff; background:#1e2a4e; }
-        .model-item.selected { border-color:#2ed573; background:#1a2a1a; }
-        .model-item .model-name { color:#e0e0e0; font-size:14px; font-weight:bold; word-break:break-all; }
-        .model-item .model-info { color:#888; font-size:12px; margin-top:4px; display:flex; gap:12px; flex-wrap:wrap; }
-        .model-item .model-info span { background:#0d0d1a; padding:2px 8px; border-radius:4px; }
-        .model-item .model-badge { padding:4px 12px; border-radius:12px; font-size:12px; font-weight:bold; }
-        .model-badge.recommended { background:#1a3a2a; color:#2ed573; }
-        .model-badge.st { background:#2a2a4e; color:#7b8cff; }
-        .model-badge.pth { background:#3a2a1a; color:#ffa502; }
-        .model-item .model-size { color:#a0a8ff; font-size:13px; white-space:nowrap; }
-        .model-service-status { display:flex; align-items:center; gap:8px; margin-bottom:16px; padding:12px; background:#0d0d1a; border-radius:8px; }
-        .model-service-status .dot { width:10px; height:10px; border-radius:50%; }
-        .model-service-status .dot.running { background:#2ed573; box-shadow:0 0 8px #2ed573; }
-        .model-service-status .dot.stopped { background:#ff4757; }
-        .model-service-status .dot.starting { background:#ffa502; animation:pulse 1s infinite; }
-        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
-        .model-modal-actions { display:flex; gap:8px; margin-top:20px; justify-content:flex-end; }
+        html, body { height: 100%; }
+        body {
+            font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+            background: radial-gradient(ellipse at top, #14142a 0%, var(--bg-0) 60%);
+            color: var(--text);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+        .nav { display: flex; background: rgba(26, 26, 46, 0.7); backdrop-filter: blur(10px); padding: 10px 20px; gap: 4px; border-bottom: 1px solid var(--line); flex-wrap: wrap; position: sticky; top: 0; z-index: 100; }
+        .nav a { color: var(--text-2); text-decoration: none; font-size: 13px; padding: 8px 14px; border-radius: 6px; transition: all .2s; }
+        .nav a:hover { background: var(--bg-4); color: var(--text); }
+        .nav a.active { background: linear-gradient(135deg, var(--primary), var(--primary-3)); color: #fff; box-shadow: 0 2px 8px rgba(123, 140, 255, 0.3); }
+        .nav .nav-spacer { flex: 1; }
+        .nav .model-pill { display: flex; align-items: center; gap: 6px; padding: 6px 12px; background: var(--bg-2); border: 1px solid var(--line); border-radius: 6px; font-size: 12px; cursor: pointer; transition: all .2s; }
+        .nav .model-pill:hover { border-color: var(--primary); }
+        .nav .model-pill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--danger); }
+        .nav .model-pill .dot.running { background: var(--success); box-shadow: 0 0 8px var(--success); }
+
+        /* 主布局 */
+        .cockpit { display: grid; grid-template-columns: 380px 1fr; gap: 16px; padding: 16px; max-width: 1800px; margin: 0 auto; min-height: calc(100vh - 60px); }
+        @media (max-width: 1100px) { .cockpit { grid-template-columns: 1fr; } }
+
+        /* 面板通用 */
+        .panel { background: rgba(26, 26, 46, 0.6); backdrop-filter: blur(10px); border: 1px solid var(--line); border-radius: 12px; padding: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.2); }
+        .panel-title { font-size: 13px; color: var(--text-3); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+        .panel-title .accent { width: 3px; height: 14px; background: linear-gradient(180deg, var(--primary), var(--purple)); border-radius: 2px; }
+
+        /* 左侧：项目控制面板 */
+        .left-col { display: flex; flex-direction: column; gap: 16px; }
+        .project-header { display: flex; align-items: center; gap: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+        .project-icon { width: 44px; height: 44px; background: linear-gradient(135deg, var(--primary), var(--purple)); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 22px; box-shadow: 0 4px 12px rgba(123, 140, 255, 0.3); }
+        .project-info h2 { font-size: 15px; color: var(--text); margin-bottom: 2px; }
+        .project-info .subtitle { font-size: 11px; color: var(--text-3); }
+
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .form-group { display: flex; flex-direction: column; gap: 4px; }
+        .form-group.full { grid-column: 1 / -1; }
+        .form-group label { font-size: 11px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.5px; }
+        .form-group input, .form-group select { background: var(--bg-1); border: 1px solid var(--line); color: var(--text); padding: 8px 10px; border-radius: 6px; font-size: 13px; transition: all .2s; outline: none; }
+        .form-group input:focus, .form-group select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(123, 140, 255, 0.15); }
+
+        /* 预设主题 */
+        .theme-presets { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+        .theme-chip { padding: 4px 10px; background: var(--bg-1); border: 1px solid var(--line); border-radius: 12px; font-size: 11px; cursor: pointer; transition: all .15s; }
+        .theme-chip:hover { border-color: var(--primary); color: var(--primary-2); }
+        .theme-chip.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+        /* 启动按钮 */
+        .start-zone { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+        .btn-launch { width: 100%; padding: 14px; background: linear-gradient(135deg, var(--success), #26c466); color: #0a0a1a; border: none; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer; transition: all .2s; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 12px rgba(46, 213, 115, 0.3); }
+        .btn-launch:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(46, 213, 115, 0.4); }
+        .btn-launch:disabled { background: var(--bg-3); color: var(--text-3); cursor: not-allowed; box-shadow: none; }
+        .btn-launch .pulse { width: 8px; height: 8px; border-radius: 50%; background: currentColor; animation: pulse 1.2s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(0.85); } }
+
+        .btn-launch-stop { background: linear-gradient(135deg, var(--danger), #e0354a); color: #fff; box-shadow: 0 4px 12px rgba(255, 71, 87, 0.3); }
+
+        /* 右侧：监控区 */
+        .right-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+
+        /* 进度卡 */
+        .progress-card { background: linear-gradient(135deg, rgba(123, 140, 255, 0.08), rgba(184, 141, 255, 0.05)); border: 1px solid var(--line); border-radius: 12px; padding: 20px; }
+        .progress-head { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 14px; }
+        .progress-head .label { font-size: 12px; color: var(--text-3); text-transform: uppercase; letter-spacing: 1px; }
+        .progress-head .value { font-size: 36px; font-weight: bold; color: var(--text); line-height: 1; }
+        .progress-head .value .pct { font-size: 18px; color: var(--text-3); }
+        .progress-bar-big { height: 8px; background: var(--bg-1); border-radius: 4px; overflow: hidden; margin-bottom: 8px; }
+        .progress-bar-big .fill { height: 100%; background: linear-gradient(90deg, var(--primary), var(--purple), var(--success)); border-radius: 4px; transition: width .5s ease; box-shadow: 0 0 12px rgba(123, 140, 255, 0.4); }
+        .progress-info { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-3); }
+
+        /* 阶段时间线 */
+        .stages { display: flex; gap: 6px; align-items: stretch; }
+        .stage { flex: 1; background: var(--bg-1); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; transition: all .3s; position: relative; overflow: hidden; }
+        .stage.active { background: linear-gradient(135deg, rgba(255, 165, 2, 0.15), rgba(255, 71, 87, 0.05)); border-color: var(--warn); }
+        .stage.completed { background: linear-gradient(135deg, rgba(46, 213, 115, 0.12), rgba(46, 213, 115, 0.04)); border-color: var(--success); }
+        .stage .stage-icon { font-size: 16px; margin-bottom: 4px; }
+        .stage .stage-name { font-size: 12px; color: var(--text-2); }
+        .stage .stage-status { font-size: 10px; color: var(--text-4); margin-top: 2px; }
+        .stage.active .stage-name { color: var(--warn); }
+        .stage.completed .stage-name { color: var(--success); }
+        .stage.active::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: var(--warn); animation: shimmer 1.5s infinite; }
+        @keyframes shimmer { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
+
+        /* 双栏：统计 + 日志 */
+        .dual-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        @media (max-width: 1300px) { .dual-row { grid-template-columns: 1fr; } }
+
+        /* 统计卡 */
+        .stat-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+        .stat-cell { background: var(--bg-1); border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
+        .stat-cell .num { font-size: 22px; color: var(--primary-2); font-weight: bold; line-height: 1; }
+        .stat-cell .num.green { color: var(--success); }
+        .stat-cell .num.orange { color: var(--warn); }
+        .stat-cell .num.purple { color: var(--purple); }
+        .stat-cell .label { font-size: 11px; color: var(--text-3); margin-top: 4px; }
+
+        /* 日志 */
+        .log-panel { display: flex; flex-direction: column; min-height: 320px; }
+        .log-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .log-head .actions { display: flex; gap: 6px; }
+        .log-head .action { font-size: 11px; padding: 4px 10px; background: var(--bg-1); border: 1px solid var(--line); border-radius: 4px; color: var(--text-2); cursor: pointer; transition: all .15s; }
+        .log-head .action:hover { border-color: var(--primary); color: var(--primary-2); }
+        .log-body { flex: 1; background: var(--bg-0); border: 1px solid var(--line); border-radius: 8px; padding: 10px; font-family: 'Cascadia Code', 'Consolas', monospace; font-size: 12px; line-height: 1.6; color: var(--text-2); overflow-y: auto; max-height: 400px; }
+        .log-body .entry { display: flex; gap: 8px; padding: 2px 0; }
+        .log-body .entry .ts { color: var(--text-4); flex-shrink: 0; }
+        .log-body .entry .tag { flex-shrink: 0; padding: 0 6px; border-radius: 3px; font-size: 10px; font-weight: bold; }
+        .log-body .entry .tag.info { background: rgba(95, 202, 247, 0.15); color: var(--info); }
+        .log-body .entry .tag.success { background: rgba(46, 213, 115, 0.15); color: var(--success); }
+        .log-body .entry .tag.warn { background: rgba(255, 165, 2, 0.15); color: var(--warn); }
+        .log-body .entry .tag.error { background: rgba(255, 71, 87, 0.15); color: var(--danger); }
+        .log-body .entry .tag.system { background: rgba(184, 141, 255, 0.15); color: var(--purple); }
+        .log-body .entry .msg { color: var(--text); word-break: break-word; }
+        .log-body .empty { text-align: center; color: var(--text-4); padding: 40px 0; font-size: 13px; }
+
+        /* 预设模板 */
+        .presets-panel { padding-top: 14px; border-top: 1px solid var(--line); margin-top: 14px; }
+        .presets-panel h3 { font-size: 11px; color: var(--text-3); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+        .preset-list { display: grid; gap: 6px; }
+        .preset-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: var(--bg-1); border: 1px solid var(--line); border-radius: 6px; cursor: pointer; transition: all .15s; }
+        .preset-item:hover { border-color: var(--primary); background: var(--bg-2); }
+        .preset-item .preset-icon { font-size: 16px; }
+        .preset-item .preset-info { flex: 1; }
+        .preset-item .preset-name { font-size: 12px; color: var(--text); }
+        .preset-item .preset-meta { font-size: 10px; color: var(--text-3); margin-top: 2px; }
+
+        /* 模型选择弹窗 */
+        .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.7); z-index: 200; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
+        .modal-overlay.active { display: flex; }
+        .modal { background: var(--bg-3); border: 1px solid var(--line); border-radius: 12px; padding: 24px; max-width: 720px; width: 90%; max-height: 80vh; overflow-y: auto; box-shadow: 0 8px 32px rgba(0,0,0,0.5); }
+        .modal h2 { font-size: 18px; color: var(--text); margin-bottom: 16px; }
+        .modal-actions { display: flex; gap: 8px; margin-top: 20px; justify-content: flex-end; }
+        .modal .btn { padding: 8px 18px; border: 1px solid var(--line); background: var(--bg-1); color: var(--text); border-radius: 6px; cursor: pointer; font-size: 13px; transition: all .15s; }
+        .modal .btn:hover { border-color: var(--primary); }
+        .modal .btn.primary { background: var(--primary); color: #fff; border-color: var(--primary); }
+        .modal .btn.danger { background: var(--danger); color: #fff; border-color: var(--danger); }
+        .modal .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .model-card { background: var(--bg-1); border: 1px solid var(--line); border-radius: 8px; padding: 14px; margin-bottom: 8px; cursor: pointer; transition: all .15s; display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; }
+        .model-card:hover { border-color: var(--primary); }
+        .model-card.selected { border-color: var(--success); background: rgba(46, 213, 115, 0.05); }
+        .model-card .name { font-size: 13px; font-weight: bold; color: var(--text); }
+        .model-card .meta { font-size: 11px; color: var(--text-3); margin-top: 4px; display: flex; gap: 8px; flex-wrap: wrap; }
+        .model-card .meta span { background: var(--bg-3); padding: 2px 8px; border-radius: 4px; }
+        .model-card .right { text-align: right; }
+        .model-card .badge { display: inline-block; padding: 3px 10px; border-radius: 10px; font-size: 11px; font-weight: bold; }
+        .model-card .badge.recommended { background: rgba(46, 213, 115, 0.15); color: var(--success); }
+        .model-card .badge.st { background: rgba(123, 140, 255, 0.15); color: var(--primary-2); }
+        .model-card .badge.pth { background: rgba(255, 165, 2, 0.15); color: var(--warn); }
+        .model-card .size { color: var(--text-3); font-size: 12px; margin-top: 4px; }
+        .service-status { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; padding: 10px 14px; background: var(--bg-1); border-radius: 8px; font-size: 13px; }
+        .service-status .dot { width: 10px; height: 10px; border-radius: 50%; }
+        .service-status .dot.running { background: var(--success); box-shadow: 0 0 8px var(--success); }
+        .service-status .dot.stopped { background: var(--danger); }
+        .service-status .dot.starting { background: var(--warn); animation: pulse 1s infinite; }
     </style>
 </head>
 <body>
     <nav class="nav">
-        <a href="/" class="active">首页</a>
+        <a href="/" class="active">驾驶舱</a>
         <a href="/create">小说创作</a>
         <a href="/pipeline">管线控制</a>
-        <a href="/matrix">章节并发矩阵</a>
+        <a href="/matrix">章节矩阵</a>
+        <a href="/bookshelf">书架</a>
         <a href="/world">世界状态</a>
         <a href="/roleplay">角色扮演</a>
         <a href="/review">审核裁决</a>
+        <span class="nav-spacer"></span>
+        <div class="model-pill" id="model-pill" onclick="openModelModal()">
+            <span class="dot" id="model-dot"></span>
+            <span id="model-name">未选择模型</span>
+            <span style="color: var(--text-4); font-size: 10px;">⚙</span>
+        </div>
     </nav>
-    <div class="container">
-        <h1>RWKV 超级并发多智能体小说共创框架</h1>
-        <div id="status-bar">
-            <span>加载中...</span>
-            <div style="display:flex; align-items:center; gap:12px;">
-                <span id="model-status-btn" style="cursor:pointer; padding:4px 12px; border-radius:6px; background:#2a2a4e; font-size:13px; display:flex; align-items:center; gap:6px;" onclick="openModelModal()">
-                    <span id="model-dot" style="width:8px;height:8px;border-radius:50%;background:#ff4757;"></span>
-                    <span id="model-status-text">未选择模型</span>
-                </span>
-                <span id="pipeline-state-text">-</span>
+
+    <div class="cockpit">
+        <!-- 左侧：项目控制 -->
+        <div class="left-col">
+            <div class="panel">
+                <div class="panel-title"><span class="accent"></span>项目控制</div>
+                <div class="project-header">
+                    <div class="project-icon">📖</div>
+                    <div class="project-info">
+                        <h2>新小说项目</h2>
+                        <div class="subtitle" id="project-subtitle">填写参数后一键启动</div>
+                    </div>
+                </div>
+
+                <div class="form-grid">
+                    <div class="form-group full">
+                        <label>主题 / 类型</label>
+                        <input type="text" id="home-theme" value="仙侠" placeholder="例如：仙侠 / 都市 / 科幻 / 玄幻">
+                    </div>
+                    <div class="form-group">
+                        <label>角色数量</label>
+                        <input type="number" id="home-char-count" value="6" min="2" max="30">
+                    </div>
+                    <div class="form-group">
+                        <label>卷数</label>
+                        <input type="number" id="home-volumes" value="3" min="1" max="20">
+                    </div>
+                    <div class="form-group">
+                        <label>每卷章节</label>
+                        <input type="number" id="home-chapters" value="5" min="1" max="50">
+                    </div>
+                    <div class="form-group">
+                        <label>每章切片数</label>
+                        <input type="number" id="home-slices" value="10" min="3" max="40">
+                    </div>
+                    <div class="form-group full">
+                        <label>批量大小 (BSZ)</label>
+                        <input type="number" id="home-max-bsz" value="8" min="1" max="200">
+                    </div>
+                </div>
+
+                <div class="theme-presets" id="theme-presets">
+                    <span class="theme-chip" data-theme="仙侠">仙侠</span>
+                    <span class="theme-chip" data-theme="都市">都市</span>
+                    <span class="theme-chip" data-theme="玄幻">玄幻</span>
+                    <span class="theme-chip" data-theme="科幻">科幻</span>
+                    <span class="theme-chip" data-theme="悬疑">悬疑</span>
+                    <span class="theme-chip" data-theme="历史">历史</span>
+                    <span class="theme-chip" data-theme="奇幻">奇幻</span>
+                </div>
+
+                <div class="start-zone">
+                    <button class="btn-launch" id="btn-launch" onclick="toggleLaunch()">
+                        <span id="btn-launch-icon">⚡</span>
+                        <span id="btn-launch-text">一键启动管线</span>
+                    </button>
+                </div>
+
+                <div class="presets-panel">
+                    <h3>快速预设</h3>
+                    <div class="preset-list">
+                        <div class="preset-item" onclick="applyPreset('short')">
+                            <div class="preset-icon">⚡</div>
+                            <div class="preset-info">
+                                <div class="preset-name">短篇速写</div>
+                                <div class="preset-meta">1卷 × 3章 × 5切片</div>
+                            </div>
+                        </div>
+                        <div class="preset-item" onclick="applyPreset('standard')">
+                            <div class="preset-icon">📚</div>
+                            <div class="preset-info">
+                                <div class="preset-name">标准长篇</div>
+                                <div class="preset-meta">3卷 × 5章 × 10切片</div>
+                            </div>
+                        </div>
+                        <div class="preset-item" onclick="applyPreset('epic')">
+                            <div class="preset-icon">🏔️</div>
+                            <div class="preset-info">
+                                <div class="preset-name">史诗长篇</div>
+                                <div class="preset-meta">5卷 × 10章 × 12切片</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-title"><span class="accent"></span>设定概览</div>
+                <div class="stat-grid">
+                    <div class="stat-cell">
+                        <div class="num" id="stat-genre">-</div>
+                        <div class="label">当前题材</div>
+                    </div>
+                    <div class="stat-cell">
+                        <div class="num green" id="stat-chars">-</div>
+                        <div class="label">已生成角色</div>
+                    </div>
+                    <div class="stat-cell">
+                        <div class="num orange" id="stat-chapters">-</div>
+                        <div class="label">已生成章节</div>
+                    </div>
+                    <div class="stat-cell">
+                        <div class="num purple" id="stat-slices">-</div>
+                        <div class="label">已写切片</div>
+                    </div>
+                </div>
             </div>
         </div>
-        <div class="grid">
-            <div class="card stat">
-                <div class="num" id="stat-chars">-</div>
-                <div class="label">角色数量</div>
-            </div>
-            <div class="card stat">
-                <div class="num" id="stat-factions">-</div>
-                <div class="label">势力数量</div>
-            </div>
-            <div class="card stat">
-                <div class="num" id="stat-foreshadow">-</div>
-                <div class="label">待回收伏笔</div>
-            </div>
-            <div class="card stat">
-                <div class="num" id="stat-chapters">-</div>
-                <div class="label">已生成章节</div>
-            </div>
-        </div>
-        <div class="card">
-            <h2>设定概览</h2>
-            <div class="spec-overview" id="spec-overview">
-                <div class="spec-card">
-                    <h3>题材</h3>
-                    <p id="spec-genre">-</p>
+
+        <!-- 右侧：实时监控 -->
+        <div class="right-col">
+            <div class="progress-card">
+                <div class="progress-head">
+                    <div>
+                        <div class="label">总体进度</div>
+                        <div class="value"><span id="progress-pct">0</span><span class="pct">%</span></div>
+                    </div>
+                    <div style="text-align: right;">
+                        <div class="label" id="stage-current">未启动</div>
+                        <div style="font-size: 18px; color: var(--text-2); margin-top: 4px;" id="stage-time">-</div>
+                    </div>
                 </div>
-                <div class="spec-card">
-                    <h3>世界观</h3>
-                    <p id="spec-world">-</p>
+                <div class="progress-bar-big">
+                    <div class="fill" id="progress-fill" style="width: 0%"></div>
                 </div>
-                <div class="spec-card">
-                    <h3>核心冲突</h3>
-                    <p id="spec-conflict">-</p>
+                <div class="progress-info">
+                    <span id="progress-detail">0 / 0 任务</span>
+                    <span id="progress-rate">等待中</span>
                 </div>
-                <div class="spec-card">
-                    <h3>故事主线</h3>
-                    <p id="spec-storyline">-</p>
-                </div>
-            </div>
-        </div>
-        <div class="card">
-            <h2>快速操作</h2>
-            <div class="quick-actions">
-                <a href="/create" class="quick-action">
-                    <div class="icon">📝</div>
-                    <div class="text">编辑设定</div>
-                </a>
-                <a href="/pipeline" class="quick-action">
-                    <div class="icon">🚀</div>
-                    <div class="text">管线控制</div>
-                </a>
-                <a href="/matrix" class="quick-action">
-                    <div class="icon">📊</div>
-                    <div class="text">章节并发矩阵</div>
-                </a>
-                <a href="/world" class="quick-action">
-                    <div class="icon">🌍</div>
-                    <div class="text">世界状态</div>
-                </a>
-                <a href="/roleplay" class="quick-action">
-                    <div class="icon">🎭</div>
-                    <div class="text">角色扮演</div>
-                </a>
-                <a href="/review" class="quick-action">
-                    <div class="icon">⚖️</div>
-                    <div class="text">审核裁决</div>
-                </a>
-            </div>
-        </div>
-        <div class="card">
-            <h2>一键启动优化管线</h2>
-            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:12px; margin-bottom:16px;">
-                <div>
-                    <label style="color:#a0a8ff; font-size:13px; display:block; margin-bottom:6px;">主题</label>
-                    <input type="text" id="home-theme" value="仙侠" style="width:100%; background:#0d0d1a; border:1px solid #333; color:#e0e0e0; padding:8px 12px; border-radius:6px; font-size:14px;">
-                </div>
-                <div>
-                    <label style="color:#a0a8ff; font-size:13px; display:block; margin-bottom:6px;">角色数</label>
-                    <input type="number" id="home-char-count" value="6" min="2" max="30" style="width:100%; background:#0d0d1a; border:1px solid #333; color:#e0e0e0; padding:8px 12px; border-radius:6px; font-size:14px;">
-                </div>
-                <div>
-                    <label style="color:#a0a8ff; font-size:13px; display:block; margin-bottom:6px;">卷数</label>
-                    <input type="number" id="home-volumes" value="3" min="1" max="20" style="width:100%; background:#0d0d1a; border:1px solid #333; color:#e0e0e0; padding:8px 12px; border-radius:6px; font-size:14px;">
-                </div>
-                <div>
-                    <label style="color:#a0a8ff; font-size:13px; display:block; margin-bottom:6px;">每卷章节</label>
-                    <input type="number" id="home-chapters" value="5" min="1" max="50" style="width:100%; background:#0d0d1a; border:1px solid #333; color:#e0e0e0; padding:8px 12px; border-radius:6px; font-size:14px;">
-                </div>
-                <div>
-                    <label style="color:#a0a8ff; font-size:13px; display:block; margin-bottom:6px;">切片数</label>
-                    <input type="number" id="home-slices" value="20" min="4" max="40" style="width:100%; background:#0d0d1a; border:1px solid #333; color:#e0e0e0; padding:8px 12px; border-radius:6px; font-size:14px;">
-                </div>
-                <div>
-                    <label style="color:#a0a8ff; font-size:13px; display:block; margin-bottom:6px;">最大并发(bsz)</label>
-                    <input type="number" id="home-max-bsz" value="8" min="1" max="200" style="width:100%; background:#0d0d1a; border:1px solid #333; color:#e0e0e0; padding:8px 12px; border-radius:6px; font-size:14px;">
+
+                <div class="stages" id="stages" style="margin-top: 16px;">
+                    <div class="stage" data-stage="initialization">
+                        <div class="stage-icon">🎯</div>
+                        <div class="stage-name">初始化</div>
+                        <div class="stage-status">未开始</div>
+                    </div>
+                    <div class="stage" data-stage="specification">
+                        <div class="stage-icon">📋</div>
+                        <div class="stage-name">设定生成</div>
+                        <div class="stage-status">未开始</div>
+                    </div>
+                    <div class="stage" data-stage="characters">
+                        <div class="stage-icon">👥</div>
+                        <div class="stage-name">角色设计</div>
+                        <div class="stage-status">未开始</div>
+                    </div>
+                    <div class="stage" data-stage="outline">
+                        <div class="stage-icon">🗂️</div>
+                        <div class="stage-name">大纲生成</div>
+                        <div class="stage-status">未开始</div>
+                    </div>
+                    <div class="stage" data-stage="chapter_writing">
+                        <div class="stage-icon">✍️</div>
+                        <div class="stage-name">章节写作</div>
+                        <div class="stage-status">未开始</div>
+                    </div>
+                    <div class="stage" data-stage="self_check">
+                        <div class="stage-icon">🔍</div>
+                        <div class="stage-name">自检补全</div>
+                        <div class="stage-status">未开始</div>
+                    </div>
                 </div>
             </div>
-            <div style="display:flex; gap:8px; align-items:center;">
-                <button class="btn" onclick="quickStartPipeline()" style="background:#2ed573; color:#1a1a2e; font-weight:bold; padding:12px 32px; font-size:16px;">⚡ 一键启动</button>
-                <span id="home-pipeline-status" style="color:#888; font-size:13px;"></span>
+
+            <div class="dual-row">
+                <div class="panel">
+                    <div class="panel-title"><span class="accent"></span>关键指标</div>
+                    <div class="stat-grid">
+                        <div class="stat-cell">
+                            <div class="num" id="m-runtime">0秒</div>
+                            <div class="label">运行时长</div>
+                        </div>
+                        <div class="stat-cell">
+                            <div class="num green" id="m-throughput">0</div>
+                            <div class="label">任务/分钟</div>
+                        </div>
+                        <div class="stat-cell">
+                            <div class="num purple" id="m-tokens">-</div>
+                            <div class="label">生成切片</div>
+                        </div>
+                        <div class="stat-cell">
+                            <div class="num orange" id="m-errors">0</div>
+                            <div class="label">异常重试</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel log-panel">
+                    <div class="log-head">
+                        <div class="panel-title" style="margin: 0;"><span class="accent"></span>实时日志</div>
+                        <div class="actions">
+                            <div class="action" onclick="exportLog()">导出</div>
+                            <div class="action" onclick="clearLog()">清空</div>
+                        </div>
+                    </div>
+                    <div class="log-body" id="log-body">
+                        <div class="empty">等待任务启动...</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-title"><span class="accent"></span>最近活动</div>
+                <div id="activity-list" style="display: flex; flex-direction: column; gap: 8px;">
+                    <div style="color: var(--text-4); text-align: center; padding: 20px; font-size: 12px;">暂无活动记录</div>
+                </div>
             </div>
         </div>
     </div>
 
-    <div class="model-modal-overlay" id="model-modal-overlay">
-        <div class="model-modal">
+    <!-- 模型选择弹窗 -->
+    <div class="modal-overlay" id="model-modal-overlay">
+        <div class="modal">
             <h2>选择推理模型</h2>
-            <div class="model-service-status" id="model-service-status">
+            <div class="service-status" id="service-status">
                 <span class="dot stopped" id="modal-service-dot"></span>
-                <span id="modal-service-text" style="font-size:14px;">服务未启动</span>
+                <span id="modal-service-text">服务未启动</span>
             </div>
             <div id="model-list">加载中...</div>
-            <div class="model-modal-actions">
+            <div class="modal-actions">
                 <button class="btn danger" id="btn-stop-model" onclick="stopModelService()" style="display:none;">停止服务</button>
                 <button class="btn" onclick="closeModelModal()">取消</button>
-                <button class="btn success" id="btn-start-model" onclick="startSelectedModel()">启动模型</button>
+                <button class="btn primary" id="btn-start-model" onclick="startSelectedModel()">启动模型</button>
             </div>
         </div>
     </div>
 
     <script>
-        async function loadStatus() {
-            try {
-                const r = await fetch('/api/status');
-                const d = await r.json();
-                document.getElementById('status-bar').querySelector('span').textContent = '管线状态: ' + d.state;
-                document.getElementById('pipeline-state-text').textContent = d.state || '-';
-                const ws = d.world_status || {};
-                document.getElementById('stat-chars').textContent = ws.characters || 0;
-                document.getElementById('stat-factions').textContent = ws.factions || 0;
-                document.getElementById('stat-foreshadow').textContent = (ws.foreshadowings && ws.foreshadowings.planted) || 0;
-                document.getElementById('stat-chapters').textContent = ws.chapters || 0;
-            } catch(e) {
-                document.getElementById('status-bar').querySelector('span').textContent = '无法连接服务器';
-            }
-        }
-        async function loadSpecOverview() {
-            try {
-                const r = await fetch('/api/context/spec/fields');
-                const fields = await r.json();
-                const fieldMap = {};
-                fields.forEach(f => fieldMap[f.key] = f.value);
-                document.getElementById('spec-genre').textContent = fieldMap.genre || '-';
-                document.getElementById('spec-world').textContent = (fieldMap.world_view || '').substring(0, 100) + '...' || '-';
-                document.getElementById('spec-conflict').textContent = (fieldMap.conflict_types || '').substring(0, 100) + '...' || '-';
-                document.getElementById('spec-storyline').textContent = (fieldMap.storyline || '').substring(0, 150) + '...' || '-';
-            } catch(e) {}
-        }
-        loadStatus();
-        loadSpecOverview();
-        setInterval(loadStatus, 5000);
+        // 状态
+        let _runStartTime = null;
+        let _timerInterval = null;
+        let _isRunning = false;
+        let _completedTasks = 0;
+        let _totalTasks = 0;
+        let _currentStage = '';
+        let _modelsData = [];
+        let _selectedModelPath = null;
+        let _logEntries = [];
+        let _logMax = 500;
+        let _taskErrorCount = 0;
+        let _lastThroughputSample = { t: 0, c: 0 };
 
-        const indexSocket = io(location.host, { transports: ['websocket'], reconnection: true, reconnectionDelay: 3000 });
-        indexSocket.on('progress_update', (data) => {
-            const statusEl = document.getElementById('home-pipeline-status');
-            if (data.status === 'running' || data.status === 'started') {
-                const pct = data.total_tasks > 0 ? Math.round((data.completed_tasks || 0) / data.total_tasks * 100) : 0;
-                statusEl.textContent = `${data.current_stage || '运行中'} (${pct}%)`;
-                statusEl.style.color = '#2ed573';
-                document.getElementById('pipeline-state-text').textContent = 'running';
-            } else if (data.status === 'completed') {
-                statusEl.textContent = '管线已完成!';
-                statusEl.style.color = '#2ed573';
-                document.getElementById('pipeline-state-text').textContent = 'completed';
-            } else if (data.status === 'failed') {
-                statusEl.textContent = '管线失败: ' + (data.error || '');
-                statusEl.style.color = '#ff4757';
-                document.getElementById('pipeline-state-text').textContent = 'failed';
-            }
+        // 主题预设
+        document.querySelectorAll('.theme-chip').forEach(chip => {
+            chip.addEventListener('click', () => {
+                document.querySelectorAll('.theme-chip').forEach(c => c.classList.remove('active'));
+                chip.classList.add('active');
+                document.getElementById('home-theme').value = chip.dataset.theme;
+            });
         });
+        // 默认激活当前主题
+        (function() {
+            const cur = document.getElementById('home-theme').value;
+            document.querySelectorAll('.theme-chip').forEach(c => {
+                if (c.dataset.theme === cur) c.classList.add('active');
+            });
+        })();
 
-        async function quickStartPipeline() {
-            const theme = document.getElementById('home-theme').value.trim();
+        // 预设
+        function applyPreset(name) {
+            const presets = {
+                short: { theme: '仙侠', chars: 4, volumes: 1, chapters: 3, slices: 5, bsz: 8 },
+                standard: { theme: '仙侠', chars: 6, volumes: 3, chapters: 5, slices: 10, bsz: 8 },
+                epic: { theme: '玄幻', chars: 10, volumes: 5, chapters: 10, slices: 12, bsz: 16 },
+            };
+            const p = presets[name];
+            if (!p) return;
+            document.getElementById('home-theme').value = p.theme;
+            document.getElementById('home-char-count').value = p.chars;
+            document.getElementById('home-volumes').value = p.volumes;
+            document.getElementById('home-chapters').value = p.chapters;
+            document.getElementById('home-slices').value = p.slices;
+            document.getElementById('home-max-bsz').value = p.bsz;
+            document.querySelectorAll('.theme-chip').forEach(c => c.classList.toggle('active', c.dataset.theme === p.theme));
+            addLog('info', '已应用预设：' + name);
+        }
+
+        // 日志
+        function addLog(tag, msg) {
+            const ts = new Date().toTimeString().substring(0, 8);
+            _logEntries.push({ ts, tag, msg, time: Date.now() });
+            if (_logEntries.length > _logMax) _logEntries.shift();
+
+            const body = document.getElementById('log-body');
+            if (body.querySelector('.empty')) body.innerHTML = '';
+            const tagText = { info: '信息', success: '成功', warn: '警告', error: '错误', system: '系统' }[tag] || tag;
+            const div = document.createElement('div');
+            div.className = 'entry';
+            div.innerHTML = `<span class="ts">${ts}</span><span class="tag ${tag}">${tagText}</span><span class="msg"></span>`;
+            div.querySelector('.msg').textContent = msg;
+            body.appendChild(div);
+            body.scrollTop = body.scrollHeight;
+        }
+        function clearLog() {
+            _logEntries = [];
+            document.getElementById('log-body').innerHTML = '<div class="empty">日志已清空</div>';
+        }
+        function exportLog() {
+            const text = _logEntries.map(e => `[${e.ts}] [${e.tag.toUpperCase()}] ${e.msg}`).join('\n');
+            const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `cockpit-log-${new Date().toISOString().replace(/[:.]/g, '-')}.log`;
+            a.click();
+            URL.revokeObjectURL(url);
+            addLog('info', '日志已导出');
+        }
+
+        // 启动
+        async function toggleLaunch() {
+            if (_isRunning) {
+                addLog('warn', '请前往"管线控制"页停止管线，或等待完成');
+                return;
+            }
+            await startPipeline();
+        }
+
+        async function startPipeline() {
+            const theme = document.getElementById('home-theme').value.trim() || '仙侠';
             const charCount = parseInt(document.getElementById('home-char-count').value) || 6;
             const volumeCount = parseInt(document.getElementById('home-volumes').value) || 3;
             const chaptersPerVol = parseInt(document.getElementById('home-chapters').value) || 5;
-            const slicesPerCh = parseInt(document.getElementById('home-slices').value) || 20;
+            const slicesPerCh = parseInt(document.getElementById('home-slices').value) || 10;
             const maxBsz = parseInt(document.getElementById('home-max-bsz').value) || 8;
 
             const concurrencyConfig = {
                 character_concurrency: Math.min(charCount, maxBsz),
                 outline_concurrency: Math.min(chaptersPerVol, maxBsz),
-                chapter_concurrency: Math.min(4, maxBsz),
+                chapter_concurrency: Math.min(volumeCount * chaptersPerVol, maxBsz),
                 batch_size: maxBsz,
             };
 
+            // 保存到全局状态
             globalState.update({
-                theme: theme,
-                character_count: charCount,
-                volume_count: volumeCount,
-                chapters_per_volume: chaptersPerVol,
-                slices_per_chapter: slicesPerCh,
+                theme, character_count: charCount, volume_count: volumeCount,
+                chapters_per_volume: chaptersPerVol, slices_per_chapter: slicesPerCh,
                 concurrency_config: concurrencyConfig,
             });
 
-            const statusEl = document.getElementById('home-pipeline-status');
-            statusEl.textContent = '启动中（自动启动模型服务）...';
-            statusEl.style.color = '#ffa502';
+            addLog('system', `▶ 启动管线：主题=${theme}，${volumeCount}卷×${chaptersPerVol}章×${slicesPerCh}切片`);
+            addLog('info', `并发配置：BSZ=${maxBsz}`);
+
+            setRunningUI(true);
 
             try {
                 const r = await fetch('/api/pipeline/optimized', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({
-                        theme: theme,
-                        character_count: charCount,
-                        volume_count: volumeCount,
-                        chapters_per_volume: chaptersPerVol,
+                        theme, character_count: charCount,
+                        volume_count: volumeCount, chapters_per_volume: chaptersPerVol,
                         slices_per_chapter: slicesPerCh,
                         concurrency_config: concurrencyConfig,
-                        protagonist_names: [],
+                        protagonist_names: [], antagonist_names: [],
                     }),
                 });
                 const d = await r.json();
                 if (d.status === 'started') {
-                    statusEl.textContent = '已启动! 跳转到矩阵视图...';
-                    statusEl.style.color = '#2ed573';
-                    setTimeout(() => { window.location.href = '/matrix'; }, 1500);
+                    addLog('success', '✓ 管线已启动');
+                    addActivity('管线启动', `${theme} · ${volumeCount}卷×${chaptersPerVol}章`);
                 } else {
-                    statusEl.textContent = '失败: ' + (d.error || d.message || '未知错误');
-                    statusEl.style.color = '#ff4757';
+                    addLog('error', '✗ 启动失败：' + (d.message || d.error || '未知错误'));
+                    setRunningUI(false);
                 }
-            } catch(e) {
-                statusEl.textContent = '请求失败: ' + e.message;
-                statusEl.style.color = '#ff4757';
+            } catch (e) {
+                addLog('error', '请求失败：' + e.message);
+                setRunningUI(false);
             }
         }
 
-        let _selectedModelPath = null;
-        let _modelsData = [];
+        function setRunningUI(running) {
+            _isRunning = running;
+            const btn = document.getElementById('btn-launch');
+            const icon = document.getElementById('btn-launch-icon');
+            const text = document.getElementById('btn-launch-text');
+            if (running) {
+                btn.classList.add('btn-launch-stop');
+                btn.innerHTML = '<span class="pulse"></span><span>管线运行中...</span>';
+                btn.disabled = true;
+                _runStartTime = Date.now();
+                _timerInterval = setInterval(updateRuntime, 1000);
+            } else {
+                btn.classList.remove('btn-launch-stop');
+                btn.innerHTML = '<span id="btn-launch-icon">⚡</span><span id="btn-launch-text">一键启动管线</span>';
+                btn.disabled = false;
+                if (_timerInterval) { clearInterval(_timerInterval); _timerInterval = null; }
+            }
+        }
 
+        function updateRuntime() {
+            if (!_runStartTime) return;
+            const sec = Math.floor((Date.now() - _runStartTime) / 1000);
+            const m = Math.floor(sec / 60);
+            const s = sec % 60;
+            document.getElementById('m-runtime').textContent = m > 0 ? `${m}分${s}秒` : `${s}秒`;
+        }
+
+        // 阶段更新
+        function updateStage(name, status) {
+            if (!name) return;
+            const stages = document.querySelectorAll('.stage');
+            const targetStage = document.querySelector(`.stage[data-stage="${name}"]`);
+            if (!targetStage) return;
+
+            const stageOrder = ['initialization', 'specification', 'characters', 'outline', 'chapter_writing', 'self_check'];
+            const targetIdx = stageOrder.indexOf(name);
+
+            stages.forEach(s => {
+                const idx = stageOrder.indexOf(s.dataset.stage);
+                if (idx < targetIdx) {
+                    s.classList.remove('active');
+                    s.classList.add('completed');
+                    s.querySelector('.stage-status').textContent = '已完成';
+                } else if (idx === targetIdx) {
+                    if (status === 'completed') {
+                        s.classList.remove('active');
+                        s.classList.add('completed');
+                        s.querySelector('.stage-status').textContent = '已完成';
+                    } else {
+                        s.classList.add('active');
+                        s.classList.remove('completed');
+                        s.querySelector('.stage-status').textContent = '进行中';
+                    }
+                } else {
+                    s.classList.remove('active', 'completed');
+                    s.querySelector('.stage-status').textContent = '未开始';
+                }
+            });
+        }
+
+        // 进度
+        function updateProgress(data) {
+            if (data.total_tasks !== undefined) _totalTasks = data.total_tasks;
+            if (data.completed_tasks !== undefined) {
+                _completedTasks = data.completed_tasks;
+                const now = Date.now();
+                if (_lastThroughputSample.t > 0) {
+                    const dt = (now - _lastThroughputSample.t) / 1000;
+                    const dc = _completedTasks - _lastThroughputSample.c;
+                    if (dt > 0) {
+                        const rate = dc / dt * 60;
+                        document.getElementById('m-throughput').textContent = rate.toFixed(1);
+                    }
+                } else {
+                    _lastThroughputSample = { t: now, c: 0 };
+                    setTimeout(() => {
+                        _lastThroughputSample = { t: Date.now(), c: _completedTasks };
+                    }, 5000);
+                }
+            }
+
+            const pct = _totalTasks > 0 ? Math.round((_completedTasks / _totalTasks) * 100) : 0;
+            document.getElementById('progress-pct').textContent = pct;
+            document.getElementById('progress-fill').style.width = pct + '%';
+            document.getElementById('progress-detail').textContent = `${_completedTasks} / ${_totalTasks} 任务`;
+
+            if (data.current_stage) {
+                _currentStage = data.current_stage;
+                document.getElementById('stage-current').textContent = stageLabel(data.current_stage);
+                updateStage(data.current_stage, data.status);
+            }
+
+            if (data.status === 'completed') {
+                setRunningUI(false);
+                addLog('success', '🎉 管线完成！');
+                addActivity('管线完成', '可前往"书架"查看生成内容');
+            } else if (data.status === 'failed') {
+                setRunningUI(false);
+                addLog('error', '✗ 管线失败：' + (data.error || '未知错误'));
+                addActivity('管线失败', data.error || '请查看日志', 'error');
+            }
+        }
+
+        function stageLabel(name) {
+            const map = {
+                initialization: '初始化中',
+                specification: '生成设定',
+                characters: '设计角色',
+                outline: '构建大纲',
+                chapter_writing: '写作章节',
+                self_check: '自检补全',
+            };
+            return map[name] || name;
+        }
+
+        // 活动记录
+        function addActivity(title, desc, type='info') {
+            const list = document.getElementById('activity-list');
+            const empty = list.querySelector('div[style*="暂无活动"]');
+            if (empty) empty.remove();
+            const time = new Date().toTimeString().substring(0, 5);
+            const colorMap = { info: 'var(--info)', success: 'var(--success)', error: 'var(--danger)' };
+            const item = document.createElement('div');
+            item.style.cssText = `display: flex; gap: 12px; padding: 8px 12px; background: var(--bg-1); border-left: 3px solid ${colorMap[type]}; border-radius: 4px; font-size: 12px;`;
+            item.innerHTML = `<span style="color: var(--text-3); flex-shrink: 0;">${time}</span><div><div style="color: var(--text);">${title}</div><div style="color: var(--text-3); font-size: 11px; margin-top: 2px;">${desc}</div></div>`;
+            list.insertBefore(item, list.firstChild);
+            if (list.children.length > 10) list.removeChild(list.lastChild);
+        }
+
+        // 统计加载
+        async function loadStats() {
+            try {
+                const r = await fetch('/api/status');
+                const d = await r.json();
+                const ws = d.world_status || {};
+                document.getElementById('stat-chars').textContent = ws.characters || 0;
+                document.getElementById('stat-chapters').textContent = ws.chapters || 0;
+            } catch(e) {}
+            try {
+                const r2 = await fetch('/api/context/spec/fields');
+                const fields = await r2.json();
+                const map = {};
+                fields.forEach(f => map[f.key] = f.value);
+                document.getElementById('stat-genre').textContent = map.genre || '-';
+            } catch(e) {}
+            try {
+                const r3 = await fetch('/api/pipeline/progress');
+                const pd = await r3.json();
+                if (pd.chapter_matrix) {
+                    let total = 0, done = 0;
+                    pd.chapter_matrix.forEach(ch => {
+                        ch.slices && ch.slices.forEach(s => { total++; if (s.status === 'completed') done++; });
+                    });
+                    document.getElementById('stat-slices').textContent = done;
+                    if (total > 0) document.getElementById('m-tokens').textContent = `${done}/${total}`;
+                }
+            } catch(e) {}
+        }
+
+        // WebSocket
+        const socket = io(location.host, { transports: ['websocket'], reconnection: true });
+        socket.on('progress_update', (data) => {
+            updateProgress(data);
+        });
+        socket.on('state_update', (data) => {
+            if (data.pipeline_status) {
+                const s = data.pipeline_status;
+                if (s === 'running' && !_isRunning) setRunningUI(true);
+                else if (s === 'completed' && _isRunning) {
+                    setRunningUI(false);
+                    addLog('success', '🎉 管线完成！');
+                }
+                else if (s === 'failed' && _isRunning) {
+                    setRunningUI(false);
+                    addLog('error', '管线失败');
+                }
+            }
+        });
+
+        // 模型
         function openModelModal() {
             document.getElementById('model-modal-overlay').classList.add('active');
             loadModels();
         }
-
         function closeModelModal() {
             document.getElementById('model-modal-overlay').classList.remove('active');
         }
-
         async function loadModels() {
             const listEl = document.getElementById('model-list');
             listEl.innerHTML = '加载模型列表...';
-
             try {
                 const r = await fetch('/api/models');
                 const d = await r.json();
                 _modelsData = d.models || [];
-
                 const dot = document.getElementById('modal-service-dot');
                 const text = document.getElementById('modal-service-text');
                 const stopBtn = document.getElementById('btn-stop-model');
                 const startBtn = document.getElementById('btn-start-model');
-
                 if (d.service_running) {
                     dot.className = 'dot running';
-                    text.textContent = '服务运行中 - ' + (d.current_model ? d.current_model.split(/[/\\]/).pop() : '未知模型');
+                    text.textContent = '运行中 - ' + (d.current_model ? d.current_model.split(/[/\\]/).pop() : '');
                     stopBtn.style.display = 'inline-block';
                     startBtn.textContent = '切换模型';
                 } else {
@@ -345,177 +782,126 @@
                     stopBtn.style.display = 'none';
                     startBtn.textContent = '启动模型';
                 }
-
                 if (_selectedModelPath === null) {
-                    if (d.current_model) {
-                        _selectedModelPath = d.current_model;
-                    } else {
-                        const defaultModel = _modelsData.find(m => m.name.includes('rwkv7-g1f-2.9b-20260420-ctx8192'));
-                        const stDefault = defaultModel && _modelsData.find(m => m.name.includes('rwkv7-g1f-2.9b-20260420-ctx8192') && m.format === 'st');
-                        _selectedModelPath = stDefault ? stDefault.path : (defaultModel ? defaultModel.path : (_modelsData.find(m => m.is_recommended) || _modelsData[0]).path);
+                    if (d.current_model) _selectedModelPath = d.current_model;
+                    else {
+                        const def = _modelsData.find(m => m.is_recommended) || _modelsData[0];
+                        if (def) _selectedModelPath = def.path;
                     }
                 }
-
-                if (_modelsData.length === 0) {
-                    listEl.innerHTML = '<div style="color:#ff4757; padding:20px; text-align:center;">未找到可用模型<br><span style="font-size:12px;color:#888;">请将 .st 或 .pth 模型文件放入 rwkv_models/ 目录</span></div>';
+                if (!_modelsData.length) {
+                    listEl.innerHTML = '<div style="color: var(--danger); padding: 20px; text-align: center;">未找到模型文件<br><small style="color: var(--text-3);">请将模型放入 rwkv_models/ 目录</small></div>';
                     return;
                 }
-
                 listEl.innerHTML = _modelsData.map((m, i) => {
                     const selected = m.path === _selectedModelPath ? 'selected' : '';
                     const badgeClass = m.is_recommended ? 'recommended' : (m.format === 'st' ? 'st' : 'pth');
                     const badgeText = m.is_recommended ? '推荐' : m.format.toUpperCase();
-                    const tags = [];
-                    if (m.size_label) tags.push(m.size_label);
-                    if (m.version) tags.push(m.version);
-                    if (m.ctx) tags.push('ctx' + m.ctx);
-                    if (m.date) tags.push(m.date);
-                    let convertNote = '';
-                    if (m.format === 'pth' || m.format === 'pt') {
-                        if (m.has_st) {
-                            convertNote = '<div style="color:#2ed573; font-size:11px; margin-top:4px;">✓ 已有对应 .st 文件，启动时自动使用</div>';
-                        } else {
-                            convertNote = '<div style="color:#ffa502; font-size:11px; margin-top:4px;">⚠ 启动时将自动转换为 .st 格式（需等待）</div>';
-                        }
-                    }
-                    return `<div class="model-item ${selected}" onclick="selectModel(${i})" id="model-item-${i}">
+                    return `<div class="model-card ${selected}" onclick="selectModel(${i})">
                         <div>
-                            <div class="model-name">${m.name}</div>
-                            <div class="model-info">${tags.map(t => '<span>' + t + '</span>').join('')}</div>
-                            ${convertNote}
+                            <div class="name">${m.name}</div>
+                            <div class="meta">
+                                ${m.size_label ? `<span>${m.size_label}</span>` : ''}
+                                ${m.version ? `<span>${m.version}</span>` : ''}
+                                ${m.ctx ? `<span>ctx${m.ctx}</span>` : ''}
+                                ${m.date ? `<span>${m.date}</span>` : ''}
+                            </div>
                         </div>
-                        <div style="text-align:right;">
-                            <span class="model-badge ${badgeClass}">${badgeText}</span>
-                            <div class="model-size">${m.size_mb} MB</div>
+                        <div class="right">
+                            <span class="badge ${badgeClass}">${badgeText}</span>
+                            <div class="size">${m.size_mb} MB</div>
                         </div>
                     </div>`;
                 }).join('');
             } catch(e) {
-                listEl.innerHTML = '<div style="color:#ff4757; padding:20px; text-align:center;">加载失败: ' + e.message + '</div>';
+                listEl.innerHTML = '<div style="color: var(--danger); padding: 20px;">加载失败: ' + e.message + '</div>';
             }
         }
-
         function selectModel(idx) {
             _selectedModelPath = _modelsData[idx].path;
-            document.querySelectorAll('.model-item').forEach(el => el.classList.remove('selected'));
-            document.getElementById('model-item-' + idx).classList.add('selected');
+            document.querySelectorAll('.model-card').forEach(el => el.classList.remove('selected'));
+            event.currentTarget.classList.add('selected');
         }
-
         async function startSelectedModel() {
-            if (!_selectedModelPath) {
-                alert('请先选择一个模型');
-                return;
-            }
-
+            if (!_selectedModelPath) { alert('请先选择模型'); return; }
             const dot = document.getElementById('modal-service-dot');
             const text = document.getElementById('modal-service-text');
             const startBtn = document.getElementById('btn-start-model');
-
-            const selectedModel = _modelsData.find(m => m.path === _selectedModelPath);
-            const isPth = selectedModel && (selectedModel.format === 'pth' || selectedModel.format === 'pt');
-            const hasSt = selectedModel && selectedModel.has_st;
-
-            if (isPth && !hasSt) {
-                dot.className = 'dot starting';
-                text.textContent = '正在转换模型为 .st 格式，请耐心等待...';
-            } else if (isPth && hasSt) {
-                dot.className = 'dot starting';
-                text.textContent = '使用已有 .st 文件启动中...';
-            } else {
-                dot.className = 'dot starting';
-                text.textContent = '正在启动模型...';
-            }
+            dot.className = 'dot starting';
+            text.textContent = '启动中...';
             startBtn.disabled = true;
-            startBtn.textContent = '处理中...';
-
             try {
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 1800000);
-
                 const r = await fetch('/api/models/start', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ model_path: _selectedModelPath }),
-                    signal: controller.signal,
                 });
-                clearTimeout(timeoutId);
                 const d = await r.json();
-
-                if (d.status === 'started') {
+                if (d.status === 'started' || d.status === 'already_running') {
                     dot.className = 'dot running';
-                    const actualModel = d.model ? d.model.split(/[/\\]/).pop() : _selectedModelPath.split(/[/\\]/).pop();
-                    text.textContent = '服务已启动 - ' + actualModel;
+                    const name = (d.model || _selectedModelPath).split(/[/\\]/).pop();
+                    text.textContent = '已启动 - ' + name;
                     startBtn.textContent = '切换模型';
-                    updateModelStatusBar(true, d.model || _selectedModelPath);
-                    setTimeout(() => { closeModelModal(); }, 1000);
-                } else if (d.status === 'already_running') {
-                    dot.className = 'dot running';
-                    text.textContent = d.message;
-                    startBtn.textContent = '切换模型';
+                    updateModelPill(true, name);
+                    addLog('success', '模型服务已启动：' + name);
+                    setTimeout(closeModelModal, 800);
                 } else {
                     dot.className = 'dot stopped';
-                    text.textContent = '启动失败: ' + (d.message || '未知错误');
-                    startBtn.textContent = '启动模型';
+                    text.textContent = '启动失败：' + (d.message || '未知');
                 }
             } catch(e) {
                 dot.className = 'dot stopped';
-                text.textContent = '请求失败: ' + e.message;
+                text.textContent = '请求失败：' + e.message;
             }
-
             startBtn.disabled = false;
         }
-
         async function stopModelService() {
             const dot = document.getElementById('modal-service-dot');
             const text = document.getElementById('modal-service-text');
             const stopBtn = document.getElementById('btn-stop-model');
-            const startBtn = document.getElementById('btn-start-model');
-
             dot.className = 'dot starting';
-            text.textContent = '正在停止服务...';
+            text.textContent = '停止中...';
             stopBtn.disabled = true;
-
             try {
                 await fetch('/api/models/stop', { method: 'POST' });
                 dot.className = 'dot stopped';
-                text.textContent = '服务已停止';
+                text.textContent = '已停止';
                 stopBtn.style.display = 'none';
-                startBtn.textContent = '启动模型';
-                updateModelStatusBar(false, null);
+                document.getElementById('btn-start-model').textContent = '启动模型';
+                updateModelPill(false, null);
+                addLog('info', '模型服务已停止');
             } catch(e) {
-                text.textContent = '停止失败: ' + e.message;
+                text.textContent = '停止失败：' + e.message;
             }
-
             stopBtn.disabled = false;
         }
-
-        function updateModelStatusBar(running, modelPath) {
+        function updateModelPill(running, name) {
             const dot = document.getElementById('model-dot');
-            const text = document.getElementById('model-status-text');
-            if (running && modelPath) {
-                dot.style.background = '#2ed573';
-                dot.style.boxShadow = '0 0 6px #2ed573';
-                text.textContent = modelPath.split(/[/\\]/).pop();
+            const txt = document.getElementById('model-name');
+            if (running && name) {
+                dot.classList.add('running');
+                txt.textContent = name;
             } else {
-                dot.style.background = '#ff4757';
-                dot.style.boxShadow = 'none';
-                text.textContent = '未选择模型';
+                dot.classList.remove('running');
+                txt.textContent = '未选择模型';
             }
         }
-
         async function checkModelStatus() {
             try {
                 const r = await fetch('/api/models');
                 const d = await r.json();
                 if (d.service_running && d.current_model) {
-                    updateModelStatusBar(true, d.current_model);
+                    updateModelPill(true, d.current_model.split(/[/\\]/).pop());
                 } else {
-                    updateModelStatusBar(false, null);
+                    updateModelPill(false, null);
                 }
             } catch(e) {}
         }
 
+        // 初始化
         checkModelStatus();
+        loadStats();
+        setInterval(loadStats, 5000);
 
         globalState.connect();
         globalState.syncFormInputs({
@@ -525,18 +911,10 @@
             'slices_per_chapter': 'home-slices',
         });
         globalState.on('state_update', (changes) => {
-            if ('concurrency_config' in changes) {
+            if ('concurrency_config' in changes && changes.concurrency_config) {
                 const cc = changes.concurrency_config;
-                const el1 = document.getElementById('home-max-bsz');
-                if (el1) el1.value = cc.batch_size || 8;
-            }
-            if ('pipeline_status' in changes) {
-                const el = document.getElementById('pipeline-status');
-                if (el) {
-                    const s = changes.pipeline_status;
-                    el.textContent = s === 'running' ? '运行中' : s === 'completed' ? '已完成' : s === 'failed' ? '失败' : '空闲';
-                    el.style.color = s === 'running' ? '#ffa502' : s === 'completed' ? '#2ed573' : s === 'failed' ? '#ff4757' : '#888';
-                }
+                const el = document.getElementById('home-max-bsz');
+                if (el && cc.batch_size) el.value = cc.batch_size;
             }
         });
     </script>
